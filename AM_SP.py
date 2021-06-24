@@ -33,7 +33,7 @@ import atexit
 import os.path
 import urllib
 import json
-
+import SharepointConfig as SP_CNF
 
 
 """
@@ -44,27 +44,15 @@ class SP_site:
     # constructor > 
     # authentiseert en bepaalt site waardes
     #
-    def __init__(self, tenant_id, client_id, sharepointsite):      
-
-        self.TENANT_ID = tenant_id
-        self.CLIENT_ID = client_id
-        self.SHAREPOINT_SITE = sharepointsite
-
-        ###############################################################################
-        # deze instance variables zetten we hier hardcoded
-        ###############################################################################
-        self.SHAREPOINT_HOST_NAME = 'wsaaenmaas.sharepoint.com'
-        self.AUTHORITY = 'https://login.microsoftonline.com/' + self.TENANT_ID
-        self.ENDPOINT = 'https://graph.microsoft.com/v1.0'
-        self.SCOPES = [
-            'Files.ReadWrite.All',
-            'Sites.ReadWrite.All',
-            'User.Read',
-            'User.ReadBasic.All'
-        ]
-        self.doc_list_title = 'Documenten' # directory waar we de documenten inzetten
-        ##############################################################################
-
+    def __init__(self):      
+        self.TENANT_ID = SP_CNF.TENANT_ID
+        self.CLIENT_ID = SP_CNF.CLIENT_ID
+        self.SHAREPOINT_SITE = SP_CNF.SHAREPOINT_SITE
+        self.SHAREPOINT_HOST_NAME = SP_CNF.SHAREPOINT_HOST_NAME
+        self.AUTHORITY = SP_CNF.AUTHORITY
+        self.ENDPOINT = SP_CNF.ENDPOINT
+        self.SCOPES = SP_CNF.SCOPES
+        self.doc_list_title = SP_CNF.DOC_LIST_TITLE # directory waar we de documenten inzetten        
 
         #SP variables
         self.SP_URL = (f'https://{self.SHAREPOINT_HOST_NAME}/sites/{self.SHAREPOINT_SITE}')
@@ -76,8 +64,6 @@ class SP_site:
         self.doc_lib_list_id = self.get_SP_doc_list_id()
         self.def_drive_id = self.get_def_drive_id()
         self.root_folder_id = self.def_drive_root_id()
-
-
    
     """
     authentiseer en return een token
