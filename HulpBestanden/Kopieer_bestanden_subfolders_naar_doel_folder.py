@@ -1,10 +1,10 @@
-######################################################## 
+############################################################# 
 # auteur         versie      toelichting
 # Weststeijn     1.0         creatie
 #
-# kopieer bestanden uit subfolder van een 
-#
-########################################################
+# kopieer bestanden uit subfolder(s) van een bron directory
+# naar een enkele doel directory 
+#############################################################
 import os
 import shutil
 
