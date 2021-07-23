@@ -15,4 +15,5 @@ SCOPES = [
 ]
 DOC_LIST_TITLE = 'Documenten' # directory waar we de documenten inzetten
 
+#to safeguad credentials
 use_anonymous = True
