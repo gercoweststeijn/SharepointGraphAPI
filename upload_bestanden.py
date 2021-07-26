@@ -36,7 +36,7 @@
 #
 
 import pandas as pd
-import SharepointGraph as AM_SP 
+from   MSGraphAPI import SharepointGraphAPI as AM_SP 
 import logging
 import datetime
 import traceback
@@ -60,8 +60,6 @@ logging.basicConfig(  filename= log_file_name
 # open a file to record results
 result_file_name = Exc_CNF.BRON_DIRECTORY+'\ResultFile_'+ts+'.txt'
 result_file = open(result_file_name, "a")
-
-
 
 #create SP object > based on config in SharepointConfig.py
 sp = AM_SP.SP_site()
@@ -95,12 +93,6 @@ for file in os.listdir(directory):
     f_name = (file[0:file.index('.')])
     file_dict[f_name] = file
 
-doctype_id=''
-objtype_id=''
-doc_file_name=''
-doc_file=''
-
-
 logging.info('loop excel')
 for index, row in df.iterrows():
     doctype_id=''
@@ -129,9 +121,7 @@ for index, row in df.iterrows():
             # MS does not support directly linking lists to uploaded files
             # Therefore 
             #    * we determine the uploaded doc id based on th return etag
-            #    * update the list values for the doc.
-
-            
+            #    * update the list values for the doc.            
             # upload the file
             doc_etag = sp.uploadFile(file = file_name)                       
             #dtermine id of uploaded file 
@@ -147,24 +137,33 @@ for index, row in df.iterrows():
             log_string = 'index: ' + str(index) + ' | ' + \
                           ' doctype_id: '+ str(doctype_id) + ' | ' + \
                           ' objtype_id: '+ str(objtype_id) + ' | ' + \
+                          ' excel file name: '+ str(doc_file_name) + ' | '\
                           ' doc_file: '+ str(doc_file) + ' | ' + \
                           ' fabrikant: ' + str(doc_fabrikant_value) + \
                           ' result: '+ str(result) + \
                           '\n'
             
+            # move the file to move folder
+            shutil.move(file_name, file_name_done)
+
+
             logging.info(log_string)
             result_file.write(log_string)
             print ('Weer een gelukt')
 
-            # move the file to move folder
-            print (file_name,file_name_done)
-            shutil.move(file_name, file_name_done)
-
+            
     except Exception as e:
         print ('Jammer mislukt')
         print (traceback.format_exc())
         result = 'Error: ' + repr(e)
-        log_string = 'index: ' + str(index) + ' | ' + 'doctype_id: '+ str(doctype_id) + ' | ' +' objtype_id: '+ str(objtype_id) + ' | ' +' doc_file: '+ str(doc_file) + ' | ' + ' result: '+str(result) +'\n'
+        log_string = 'index: ' + str(index) + ' | ' + \
+                          ' doctype_id: '+ str(doctype_id) + ' | ' + \
+                          ' objtype_id: '+ str(objtype_id) + ' | ' + \
+                          ' excel file name: '+ str(doc_file_name) + ' | '\
+                          ' doc_file: '+ str(doc_file) + ' | ' + \
+                          ' fabrikant: ' + str(doc_fabrikant_value) + \
+                          ' result: '+ str(result) + \
+                          '\n'
         logging.info(log_string)
         result_file.write(log_string)
 
