@@ -21,7 +21,10 @@
 #     -datetime
 #     -traceback
 #     -os
-#
+###########################################################################################################
+# config files 
+#  * excelConfig.py
+#  * SharepointConfig.py
 #*********************************************************************************************************
 # Authenticatie vind plaats via een external 
 # device flow
@@ -29,7 +32,6 @@
 # via de standaard auth. van AM kan authenticeren
 #
 # AUTH constants
-#
 #
 #*********************************************************************************************************
 #
@@ -44,6 +46,11 @@ import os
 import shutil
 import excelConfig as Exc_CNF
 
+# helper function to remove NaN inserts 
+def ifnan(var, val):
+  if (var is None) or (var == 'NaN' or 'nan' or 'NAN' ): # LELEIJK!!
+    return val
+  return var
 
 
 # set a logging file 
@@ -59,7 +66,7 @@ logging.basicConfig(  filename= log_file_name
 
 # open a file to record results
 result_file_name = Exc_CNF.BRON_DIRECTORY+'\ResultFile_'+ts+'.txt'
-result_file = open(result_file_name, "a")
+result_file = open(result_file_name, "a", encoding='utf-8')
 
 #create SP object > based on config in SharepointConfig.py
 sp = AM_SP.SP_site()
@@ -82,7 +89,8 @@ df = pd.DataFrame(data, columns= [Exc_CNF.EXCEL_COL_NAME_TITEL,
                                   Exc_CNF.EXCEL_COL_DOC_TYPE,
                                   Exc_CNF.EXCEL_COL_OBJ_TYPE,
                                   Exc_CNF.EXCEL_COL_UPLOADEN,
-                                  Exc_CNF.EXCEL_COL_FABRIKANT ])
+                                  Exc_CNF.EXCEL_COL_FABRIKANT,
+                                  Exc_CNF.EXCEL_COL_LOCATIE ])
 
 
 # uitlezen directory
@@ -100,20 +108,23 @@ for index, row in df.iterrows():
     doc_file_name=''
     doc_file=''
     try:
-        if row[Exc_CNF.EXCEL_COL_UPLOADEN] == 'ja':
-            
+        if row[Exc_CNF.EXCEL_COL_UPLOADEN] == 'JA':
+             
             # determine values from excel
             doc_row_name = row[Exc_CNF.EXCEL_COL_DOC_TYPE]
             obj_row_name = row[Exc_CNF.EXCEL_COL_OBJ_TYPE]
             doc_file_name = row[Exc_CNF.EXCEL_COL_NAME_TITEL]
-            doc_fabrikant_value = row[Exc_CNF.EXCEL_COL_FABRIKANT]
+            doc_fabrikant_value = ifnan(row[Exc_CNF.EXCEL_COL_FABRIKANT],' ')
+            doc_locatie_value = ifnan(row[Exc_CNF.EXCEL_COL_LOCATIE],'')
 
+
+            #<<  The following three statements may throw the (key value) error >>
             # determine doc and obj based on list values 
             doctype_id = docDict[doc_row_name]
             objtype_id = objDict[obj_row_name]            
-            
             # determine file based on file dict
             doc_file = file_dict[doc_file_name]
+            
             # format file - location
             file_name = Exc_CNF.BRON_DIRECTORY+'/'+ str(doc_file)            
             file_name_done = Exc_CNF.DONE_DIRECTORY+'/'+ str(doc_file)            
@@ -121,45 +132,63 @@ for index, row in df.iterrows():
             # MS does not support directly linking lists to uploaded files
             # Therefore 
             #    * we determine the uploaded doc id based on th return etag
-            #    * update the list values for the doc.
-
-            
+            #    * update the list values for the doc.            
             # upload the file
+            logging.info('uploaden bestand')
             doc_etag = sp.uploadFile(file = file_name)                       
-            #dtermine id of uploaded file 
-            doc_id =  sp.Etag2DocId(input_doc_etag = doc_etag)            
-            
-            # update the 
-            result = sp.updateDoctypeObjecttypeFabrikant(doc_id = doc_id, 
-                                                         doctype_id = doctype_id,  
-                                                         objtype_id_list = [objtype_id], 
-                                                         fabrikant_value = doc_fabrikant_value)
+            logging.info('Geupload met etag: '+str(doc_etag))
+            doc_etag = doc_etag.replace('{','')
+            doc_etag = doc_etag.replace('}','')
+            pos_comma =  (doc_etag.index(',') )
+            doc_etag = doc_etag[1:pos_comma]
+            logging.info('etag verwerkt tot: '+str(doc_etag))
+
+            #determine id of uploaded file 
+            ret_doc_id =  sp.Etag2DocId(input_doc_etag = doc_etag)   
+            if ret_doc_id == 0:
+                result = 'ERROR: FOUTMELDING:  Doc id kon niet herleid worden van etag :'+str(doc_etag)
+            else: 
+                # update the 
+                result = sp.updateDoctypeObjecttypeFabrikantLocatie(doc_id = ret_doc_id, 
+                                                                    doctype_id = doctype_id,  
+                                                                    objtype_id_list = [objtype_id], 
+                                                                    fabrikant_value = doc_fabrikant_value,
+                                                                    locatie_value   = doc_locatie_value
+                                                                )
+                # move the file to move folder
+                shutil.move(file_name, file_name_done)
 
             #create string to log
             log_string = 'index: ' + str(index) + ' | ' + \
                           ' doctype_id: '+ str(doctype_id) + ' | ' + \
                           ' objtype_id: '+ str(objtype_id) + ' | ' + \
                           ' doc_file: '+ str(doc_file) + ' | ' + \
-                          ' fabrikant: ' + str(doc_fabrikant_value) + \
+                          ' fabrikant: ' + str(doc_fabrikant_value) + ' | '\
+                          ' locatie: ' + str (doc_locatie_value)  + ' | '\
                           ' result: '+ str(result) + \
                           '\n'
-            
-            # move the file to move folder
-            shutil.move(file_name, file_name_done)
-
-
             logging.info(log_string)
             result_file.write(log_string)
-            print ('Weer een gelukt')
-
+            #print ('Weer een gelukt')
+            print (log_string)
             
+
     except Exception as e:
-        print ('Jammer mislukt')
-        print (traceback.format_exc())
+        #print ('Jammer mislukt')
+        #print (traceback.format_exc())
         result = 'Error: ' + repr(e)
-        log_string = 'index: ' + str(index) + ' | ' + 'doctype_id: '+ str(doctype_id) + ' | ' +' objtype_id: '+ str(objtype_id) + ' | ' +' doc_file: '+ str(doc_file) + ' | ' + ' result: '+str(result) +'\n'
+        log_string = 'index: ' + str(index) + ' | ' + \
+                          ' doctype_id: '+ str(doctype_id) + ' | ' + \
+                          ' objtype_id: '+ str(objtype_id) + ' | ' + \
+                          ' doc_file: '+ str(doc_file) + ' | ' + \
+                          ' fabrikant: ' + str(doc_fabrikant_value) + ' | '\
+                          ' locatie: ' + str (doc_locatie_value)  + ' | '\
+                          ' result: '+ str(result) + \
+                          '\n'
         logging.info(log_string)
+        logging.info ('TRACE:  '+traceback.format_exc())
         result_file.write(log_string)
+        print (log_string)
 
 # close log file
 result_file.close()

@@ -173,7 +173,6 @@ class SP_site:
         file_url = urllib.parse.quote(filename)
     
         # create upload session
-        print (filename)
         result = requests.post(
             f'{self.ENDPOINT}/drives/{self.def_drive_id}/items/{self.root_folder_id}:/{file_url}:/createUploadSession',
             headers=self.HEADERS,
@@ -215,27 +214,30 @@ class SP_site:
         # retrieve etag from created file and remove version (value after ,)
         # As version do not always match we remove these for later comparison
         upload_etag = resp['eTag'].upper()
-        upload_etag = upload_etag.replace('{','')
-        upload_etag = upload_etag.replace('}','')
-        pos_comma =  (upload_etag.index(',') )
-        upload_etag = upload_etag[0:pos_comma]
         return upload_etag
+     #   upload_etag = upload_etag.replace('{','')
+     #   upload_etag = upload_etag.replace('}','')
+     #   pos_comma =  (upload_etag.index(',') )
+     #   upload_etag = upload_etag[1:pos_comma]
+     #   return upload_etag
         
     
     def Etag2DocId(self, input_doc_etag):    
         #get all documents
+        found_doc_id = 0
         documents = self.get_doc_list()
 
         for document in documents:
             doc_etag = document['eTag'].upper()
-            doc_etag = doc_etag[0:doc_etag.find(',')]
+            doc_etag = doc_etag[1:doc_etag.find(',')]
             if  doc_etag == input_doc_etag:
-                doc_id = document['id']     
-        return  doc_id              
+                found_doc_id = document['id']     
+        return  found_doc_id              
 
     # Dedicated update function for RWZI DB sharepoint        
-    def updateDoctypeObjecttypeFabrikant (self, doc_id, doctype_id,objtype_id_list, fabrikant_value):
-        update_instructions = { "td_fabrikant" : fabrikant_value,        
+    def updateDoctypeObjecttypeFabrikantLocatie (self, doc_id, doctype_id,objtype_id_list, fabrikant_value,locatie_value):
+        update_instructions = { "td_fabrikant" : fabrikant_value,
+                                "locatie_tst" : locatie_value,
                                 "td_documentsoortLookupId": doctype_id,
                                 "td_objectsoortLookupId@odata.type": 'Collection(Edm.Int32)',
                                 "td_objectsoortLookupId":  objtype_id_list
@@ -256,6 +258,17 @@ class SP_site:
         doc_list = doc_list['value']
         return doc_list            
 
+    def delListItemonDocID (self, doc_id):
+        result = requests.delete(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{self.doc_list_title}/items/{doc_id}', headers=self.HEADERS)
+        result.raise_for_status()
+        return result     
+
+    #def delDriveItemonDocID (self, doc_id):
+    #    #DELETE /sites/{siteId}/drive/items/{itemId}
+    #    result = requests.delete(f'{self.ENDPOINT}/sites/{self.site_id}/drive/items/{doc_id}', headers=self.HEADERS)
+    #    result.raise_for_status()
+    #    return 'succes'
+        
     def updateStatusFinal (self):
         update_instructions = {         
                                 "_ModerationStatus": 0            
