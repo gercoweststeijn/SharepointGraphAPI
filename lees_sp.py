@@ -38,5 +38,6 @@ doc_list = sp2.listDocItemsFields()
 #print (doc_lis)
 
 for doc in doc_list:
+  print (doc['fields']['FileLeafRef'])
   print(doc['id'])
   print(doc['eTag'])

@@ -53,20 +53,28 @@ def ifnan(var, val):
   return var
 
 
+lowerbounds = 0
+upperbounds = 600
+
 # set a logging file 
 # Determine lof file name
 now = datetime.datetime.now()
 ts  = now.strftime('%Y-%m-%d-%H_%M_%S')
 #logfile
-log_file_name= Exc_CNF.BRON_DIRECTORY+'\log_'+ts+'.txt'
+log_file_name= Exc_CNF.LOG_DIRECTORY+'\log_'+str(lowerbounds)+'_'+str(upperbounds)+'___'+ts+'.txt'
 logging.basicConfig(  filename= log_file_name
                     #, encoding='utf-8'
                     , level=logging.DEBUG)
 
 
 # open a file to record results
-result_file_name = Exc_CNF.BRON_DIRECTORY+'\ResultFile_'+ts+'.txt'
+result_file_name = Exc_CNF.LOG_DIRECTORY+'\ResultFile_'+str(lowerbounds)+'_'+str(upperbounds)+'___'+ts+'.txt'
 result_file = open(result_file_name, "a", encoding='utf-8')
+
+# open a file to record results
+sweep_file_name = Exc_CNF.LOG_DIRECTORY+'\sweepFile_'+str(lowerbounds)+'_'+str(upperbounds)+'___'+ts+'.txt'
+sweep_file = open(sweep_file_name, "a", encoding='utf-8')
+sweep_file.write ('doc_etag'+ ','+'doctype_id' + ','+ 'objtype_id' + ','+ 'doc_fabrikant_value' + ','+ 'doc_locatie_value')
 
 #create SP object > based on config in SharepointConfig.py
 sp = AM_SP.SP_site()
@@ -107,9 +115,12 @@ for index, row in df.iterrows():
     objtype_id=''
     doc_file_name=''
     doc_file=''
+    doc_fabrikant_value = ''
+    doc_locatie_value = ''
     try:
-        if row[Exc_CNF.EXCEL_COL_UPLOADEN] == 'JA':
-             
+        
+        if (row[Exc_CNF.EXCEL_COL_UPLOADEN] == 'JA') and (lowerbounds <= index <= upperbounds):
+        #if row[Exc_CNF.EXCEL_COL_UPLOADEN]) == 'JA' :             
             # determine values from excel
             doc_row_name = row[Exc_CNF.EXCEL_COL_DOC_TYPE]
             obj_row_name = row[Exc_CNF.EXCEL_COL_OBJ_TYPE]
@@ -131,22 +142,20 @@ for index, row in df.iterrows():
            
             # MS does not support directly linking lists to uploaded files
             # Therefore 
-            #    * we determine the uploaded doc id based on th return etag
+            #    * upload the file
+            #    * we determine the uploaded doc id based on the returned etag
             #    * update the list values for the doc.            
-            # upload the file
+            # 
             logging.info('uploaden bestand')
             doc_etag = sp.uploadFile(file = file_name)                       
             logging.info('Geupload met etag: '+str(doc_etag))
-            doc_etag = doc_etag.replace('{','')
-            doc_etag = doc_etag.replace('}','')
-            pos_comma =  (doc_etag.index(',') )
-            doc_etag = doc_etag[1:pos_comma]
-            logging.info('etag verwerkt tot: '+str(doc_etag))
 
             #determine id of uploaded file 
             ret_doc_id =  sp.Etag2DocId(input_doc_etag = doc_etag)   
             if ret_doc_id == 0:
-                result = 'ERROR: FOUTMELDING:  Doc id kon niet herleid worden van etag :'+str(doc_etag)
+                result = 'ERROR: FOUTMELDING:  Doc id kon niet herleid worden van etag : '+str(doc_etag)
+                sweep_data = (doc_etag+ ','+doctype_id + ','+ objtype_id + ','+ doc_fabrikant_value + ','+ doc_locatie_value)
+                sweep_file.write (sweep_data)
             else: 
                 # update the 
                 result = sp.updateDoctypeObjecttypeFabrikantLocatie(doc_id = ret_doc_id, 
@@ -192,3 +201,4 @@ for index, row in df.iterrows():
 
 # close log file
 result_file.close()
+sweep_file.close()

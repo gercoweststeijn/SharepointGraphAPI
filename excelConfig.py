@@ -2,6 +2,7 @@
 ## Read Excel File
 BRON_DIRECTORY = 'c:/Temp/rwzibron/'
 DONE_DIRECTORY = 'c:/Temp/rwzidone/'
+LOG_DIRECTORY = 'c:/Temp/LOG/'
 EXCEL_FILE = r'C:\Temp\Import_Test_01.xlsx'
 BLAD       = 'Kniplijst (Martin)_Fase 1'
 EXCEL_COL_NAME_TITEL = 'Naam'

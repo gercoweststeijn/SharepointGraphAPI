@@ -214,12 +214,11 @@ class SP_site:
         # retrieve etag from created file and remove version (value after ,)
         # As version do not always match we remove these for later comparison
         upload_etag = resp['eTag'].upper()
+        upload_etag = upload_etag.replace('{','')
+        upload_etag = upload_etag.replace('}','')
+        pos_comma =  (upload_etag.index(',') )
+        upload_etag = upload_etag[1:pos_comma]
         return upload_etag
-     #   upload_etag = upload_etag.replace('{','')
-     #   upload_etag = upload_etag.replace('}','')
-     #   pos_comma =  (upload_etag.index(',') )
-     #   upload_etag = upload_etag[1:pos_comma]
-     #   return upload_etag
         
     
     def Etag2DocId(self, input_doc_etag):    
