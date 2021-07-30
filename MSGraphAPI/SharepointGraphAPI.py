@@ -135,12 +135,20 @@ class SP_site:
         root_folder_id = root_folder_info['id']
         return root_folder_id
 
+    # retrun root folder children 
+    def def_drive_root_children(self):
+        result = requests.get(f'{self.ENDPOINT}/sites/{self.site_id}/drives/{self.def_drive_id}/root/children', headers=self.HEADERS)
+        result.raise_for_status()
+        root_files_list = result.json()
+        return root_files_list
+
     #return (configured) lists in SP
     def get_SP_lists(self):
         result = requests.get(f'{self.ENDPOINT}/sites/{self.site_id}/lists/', headers=self.HEADERS)
         result.raise_for_status()
         sp_lists = result.json()
-        return sp_lists['value']
+        sp_lists = sp_lists['value']
+        return sp_lists
 
     def get_listDict_titleId(self, list_id):
         result = requests.get(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{list_id}/items?expand=fields', headers=self.HEADERS)
@@ -154,18 +162,9 @@ class SP_site:
             list_dict[title] = id
         return list_dict    
 
-    def get_doc_list(self):
-        result = requests.get(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{self.doc_list_title}/items', headers=self.HEADERS)
-        result.raise_for_status()
-        doc_list = result.json()
-        doc_list = doc_list['value']
-        return doc_list
-
-
+    #
     # Upload a file 
     # 
-
-    #
     def uploadFile(self, file):
         
         filename =  file [file.rfind('/')+1 : len(file)] 
@@ -225,11 +224,10 @@ class SP_site:
         #get all documents
         found_doc_id = 0
         documents = self.get_doc_list()
-
         for document in documents:
             doc_etag = document['eTag'].upper()
             doc_etag = doc_etag[1:doc_etag.find(',')]
-            if  doc_etag == input_doc_etag:
+            if  doc_etag == input_doc_etag.upper():
                 found_doc_id = document['id']     
         return  found_doc_id              
 
@@ -251,11 +249,53 @@ class SP_site:
         return 'Succes'
 
     def listDocItemsFields (self):
+        nextpage = 0
         result = requests.get(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{self.doc_list_title}/items/?expand=fields', headers=self.HEADERS)
         result.raise_for_status()
         doc_list = result.json()
+        if '@odata.nextLink' in doc_list:
+            nextpage = 1 
+            nexturl = doc_list['@odata.nextLink']
         doc_list = doc_list['value']
+
+        while nextpage == 1:
+            nextresult = requests.get(nexturl, headers=self.HEADERS)
+            nextresult.raise_for_status()
+            nextdoc_list = nextresult.json()
+            if '@odata.nextLink' in nextdoc_list:
+                nextpage = 1 
+                nexturl = nextdoc_list['@odata.nextLink']
+            else:
+                nextpage = 0
+            nextdoc_list = nextdoc_list['value']
+            doc_list = doc_list + nextdoc_list
+        
         return doc_list            
+
+    def get_doc_list(self):
+        nextpage = 0
+        result = requests.get(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{self.doc_list_title}/items', headers=self.HEADERS)
+        result.raise_for_status()
+        doc_list = result.json()
+        if '@odata.nextLink' in doc_list:
+            nextpage = 1 
+            nexturl = doc_list['@odata.nextLink']
+
+        doc_list = doc_list['value']
+
+        while nextpage == 1:
+            nextresult = requests.get(nexturl, headers=self.HEADERS)
+            nextresult.raise_for_status()
+            nextdoc_list = nextresult.json()
+            if '@odata.nextLink' in nextdoc_list:
+                nextpage = 1 
+                nexturl = nextdoc_list['@odata.nextLink']
+            else:
+                nextpage = 0
+            nextdoc_list = nextdoc_list['value']
+            doc_list = doc_list + nextdoc_list   
+
+        return doc_list
 
     def delListItemonDocID (self, doc_id):
         result = requests.delete(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{self.doc_list_title}/items/{doc_id}', headers=self.HEADERS)

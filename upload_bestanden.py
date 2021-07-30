@@ -53,8 +53,8 @@ def ifnan(var, val):
   return var
 
 
-lowerbounds = 0
-upperbounds = 600
+lowerbounds = 3001
+upperbounds = 4000
 
 # set a logging file 
 # Determine lof file name
@@ -154,7 +154,7 @@ for index, row in df.iterrows():
             ret_doc_id =  sp.Etag2DocId(input_doc_etag = doc_etag)   
             if ret_doc_id == 0:
                 result = 'ERROR: FOUTMELDING:  Doc id kon niet herleid worden van etag : '+str(doc_etag)
-                sweep_data = (doc_etag+ ','+doctype_id + ','+ objtype_id + ','+ doc_fabrikant_value + ','+ doc_locatie_value)
+                sweep_data = (doc_etag+ ','+doctype_id + ','+ objtype_id + ','+ doc_fabrikant_value + ','+ doc_locatie_value +'\n')
                 sweep_file.write (sweep_data)
             else: 
                 # update the 

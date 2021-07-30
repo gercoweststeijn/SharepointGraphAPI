@@ -1,4 +1,3 @@
-
 import pandas as pd
 from   MSGraphAPI import SharepointGraphAPI as AM_SP 
 import logging
@@ -35,9 +34,20 @@ result_file = open(result_file_name, "a")
 sp2 = AM_SP.SP_site()
 
 doc_list = sp2.listDocItemsFields()
+
+
 #print (doc_lis)
 
+#print (doc_list)
+
+counter = 0
 for doc in doc_list:
-  print (doc['fields']['FileLeafRef'])
-  print(doc['id'])
-  print(doc['eTag'])
+  counter = counter +1
+#  print (doc['fields']['FileLeafRef'])
+#  print(doc['id'])
+#  print(doc['eTag'])
+print (counter)
+
+
+
+

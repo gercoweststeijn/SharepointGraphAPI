@@ -13,7 +13,7 @@ result_file_name = 'c:/Temp/ResultFile_del_'+ts+'.csv'
 result_file = open(result_file_name, "a", encoding='utf-8')
 
 bron_map ='C:/Temp/rwzibron/'
-filename = r'c:\Temp\ResultFile_copy_2021-07-27-08_30_26.csv'
+filename = r'c:\Temp\ResultFile_copy_2021-07-28-16_40_05.csv'
 
 counter_all = 0
 counter_del = 0
