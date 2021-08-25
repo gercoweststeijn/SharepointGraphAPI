@@ -235,7 +235,6 @@ for index, row in excel_dataframe.iterrows():
             logging.info('Geupload met etag: '+str(doc_etag))
 
             #determine id of uploaded file 
-            
             ret_doc_id =  sp.get_Etag_from_DocId(input_doc_etag = doc_etag)   
             if ret_doc_id == 0:
                 result = 'ERROR: FOUTMELDING:  Doc id kon niet herleid worden van etag : '+str(doc_etag)
@@ -254,8 +253,8 @@ for index, row in excel_dataframe.iterrows():
                                                                         deel_proces_value_list = [deelproces_id]
                                                                         )
                 # move the file to done folder
-                #shutil.move(file_name, file_name_done)
-
+                shutil.move(file_name, file_name_done)
+            
             #create string to log
             log_string = 'index: ' + str(index) + ' | ' + \
                             ' doctype_id: '+ str(doctype_id) + ' | ' + \

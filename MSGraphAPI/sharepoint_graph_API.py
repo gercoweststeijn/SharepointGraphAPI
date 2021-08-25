@@ -190,8 +190,8 @@ class SP_site:
                 'description': '{filename}',
                 'fileSystemInfo': {'@odata.type': 'microsoft.graph.fileSystemInfo'},
                 'name': filename,
-                "fields":{  
-                        }
+                "fields":{     
+                         }
                 } 
             )
         upload_session = result.json()        
@@ -243,12 +243,9 @@ class SP_site:
                 found_doc_id = document['id']     
         return  found_doc_id        
 
-
-
     # Dedicated update function for RWZI DB sharepoint        
     #def update_doctype_objecttype_fabrikantLocatie (self, doc_id, doctype_id,objtype_id_list, fabrikant_value,locatie_value ):
     def update_doctype_objecttype_fabrikantLocatie (self, doc_id, doctype_id, fabrikant_value,locatie_value_list,deel_proces_value_list ):
-
         #
         # let op de hieronder gebruikte interne SP namen 
         # kunnen achterhaald worden in gui door de naar URL te kijken 
@@ -264,14 +261,10 @@ class SP_site:
                                 "td_documentsoortLookupId": doctype_id
                                  
                                 } 
-        if locatie_value_list != ['']:
-            print ('Er is een locatie')
+        if locatie_value_list != ['']:            
             update_instructions["td_locatie-colLookupId@odata.type"] =  'Collection(Edm.Int32)'
             update_instructions["td_locatie-colLookupId"]= locatie_value_list
-
-        print ('instructie')
-        print (update_instructions)                                                    
-        print ('================')
+        
         result =  requests.patch(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{self.doc_lib_list_id}/items/{doc_id}/fields'
         
                         , headers=self.HEADERS
@@ -301,8 +294,7 @@ class SP_site:
             else:
                 nextpage = 0
             nextdoc_list = nextdoc_list['value']
-            doc_list = doc_list + nextdoc_list
-        
+            doc_list = doc_list + nextdoc_list        
         return doc_list            
 
     def get_doc_item_with_all_fields (self, doc_id):
