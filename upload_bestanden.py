@@ -59,7 +59,8 @@ import json
 
 # helper function to remove NaN inserts 
 def ifnan(var, val):
-  if (var == 'NaN') or (var == 'nan') or (var == 'NAN' ) or (var is None): # LELEIJK!!
+  
+  if str(var) == ('NaN' or 'nan' 'NAN' ) or (var is None) : # LELEIJK!!
     return val
   return var
 
@@ -116,8 +117,8 @@ def read_config_file():
 ##############################################################################################
 # parameters om doorlezen van het excel te kunnen sturen
 # lees regels tussen deze waarde
-lowerbounds = 0
-upperbounds = 500
+lowerbounds = 10
+upperbounds = 11
 
 # haal config data op
 read_config_file()
@@ -206,12 +207,25 @@ for index, row in excel_dataframe.iterrows():
             #exc_obj_row_name = row[EXCEL_COL_OBJ_TYPE]
             exc_file_name = row[EXCEL_COL_NAME_TITEL]
             exc_deelproces_value = row[EXCEL_COL_DEELPROCES_TYPE]
-            exc_fabrikant_value = ifnan(row[EXCEL_COL_FABRIKANT],' ')
-            exc_locatie_value = ifnan(row[EXCEL_COL_LOCATIE],'')
+
+            # check voor none / nan values
+            # if there are any set them to an emtpy string
+            if not pd.isnull(row[EXCEL_COL_FABRIKANT]): 
+                exc_fabrikant_value = ifnan(row[EXCEL_COL_LOCATIE],'')
+            else: 
+                exc_fabrikant_value = ''
+
+            # check voor none / nan values
+            if not pd.isnull(row[EXCEL_COL_LOCATIE]): 
+                exc_locatie_value = ifnan(row[EXCEL_COL_LOCATIE],'')
+            else: 
+                exc_locatie_value = ''
             
             #<<  The following statements may throw the (key value) error >>
             # determine doc and obj based on list values 
             
+        
+
             doctype_id    = docDict[exc_doc_row_name]
             #objtype_id    = objDict[exc_obj_row_name]        
             deelproces_id =  proDict[exc_deelproces_value]
