@@ -117,7 +117,7 @@ def read_config_file():
 # parameters om doorlezen van het excel te kunnen sturen
 # lees regels tussen deze waarde
 lowerbounds = 0
-upperbounds = 3
+upperbounds = 500
 
 # haal config data op
 read_config_file()
@@ -169,7 +169,6 @@ logging.info('inlezen excel')
 data = pd.read_excel (EXCEL_FILE, sheet_name = BLAD)
 excel_dataframe = pd.DataFrame(data, columns= [EXCEL_COL_NAME_TITEL,
                                                EXCEL_COL_DOC_TYPE,
-                                               #EXCEL_COL_OBJ_TYPE,
                                                EXCEL_COL_UPLOADEN,
                                                EXCEL_COL_FABRIKANT,
                                                EXCEL_COL_LOCATIE, 
