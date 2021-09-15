@@ -262,9 +262,9 @@ class SP_site:
                                  
                                 } 
         if locatie_value_list != ['']:            
-            update_instructions["td_locatie-colLookupId@odata.type"] =  'Collection(Edm.Int32)'
-            update_instructions["td_locatie-colLookupId"]= locatie_value_list
-        
+            update_instructions["td_locatie_x002d_colLookupId@odata.type"] =  'Collection(Edm.Int32)'
+            update_instructions["td_locatie_x002d_colLookupId"]= locatie_value_list
+
         result =  requests.patch(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{self.doc_lib_list_id}/items/{doc_id}/fields'
         
                         , headers=self.HEADERS

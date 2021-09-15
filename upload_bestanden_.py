@@ -59,7 +59,7 @@ import json
 
 # helper function to remove NaN inserts 
 def ifnan(var, val):
-  if (var == 'NaN') or (var == 'nan') or (var == 'NAN' ) or (var is None): # LELEIJK!!
+  if (var is None) or (var == 'NaN' or 'nan' or 'NAN' ): # LELEIJK!!
     return val
   return var
 
@@ -117,7 +117,7 @@ def read_config_file():
 # parameters om doorlezen van het excel te kunnen sturen
 # lees regels tussen deze waarde
 lowerbounds = 0
-upperbounds = 3
+upperbounds = 8
 
 # haal config data op
 read_config_file()
@@ -176,6 +176,11 @@ excel_dataframe = pd.DataFrame(data, columns= [EXCEL_COL_NAME_TITEL,
                                                EXCEL_COL_DEELPROCES_TYPE]
                               )
 
+print(excel_dataframe)
+
+print(excel_dataframe['Fabrikant'])
+print ()
+
 # uitlezen directory
 logging.info('uitlezen directory - samenstellen file dict')
 file_dict = {}
@@ -202,6 +207,8 @@ for index, row in excel_dataframe.iterrows():
     try:        
         if (row[EXCEL_COL_UPLOADEN] == 'JA') and (lowerbounds <= index <= upperbounds):
 
+            print ('fab in excl '+ row[EXCEL_COL_FABRIKANT])
+            print ('fab in excl is null '+ ifnan(row[EXCEL_COL_FABRIKANT],' '))
             # determine values from excel
             exc_doc_row_name = row[EXCEL_COL_DOC_TYPE]
             #exc_obj_row_name = row[EXCEL_COL_OBJ_TYPE]
@@ -219,73 +226,89 @@ for index, row in excel_dataframe.iterrows():
             if exc_locatie_value != '':
                 locatie_id    = locDict[exc_locatie_value]
             # determine file based on file dict
-            exc_file = file_dict[exc_file_name]
-            
+#            exc_file = file_dict[exc_file_name]
+
+
+            print ('*******')
+            print(exc_fabrikant_value)
+            print (exc_locatie_value)
+            print (locatie_id)
+            print ('*******')
+
+
+
+
             # format file - location
             file_name = BRON_DIRECTORY+'/'+ str(exc_file)            
-            file_name_done = DONE_DIRECTORY+'/'+ str(exc_file)   
+            file_name_done = DONE_DIRECTORY+'/'+ str(exc_file)            
+            print ('*******')
+            print(exc_fabrikant_value)
+            print (exc_locatie_value)
+            print (locatie_id)
+            print ('*******')
 
-            # MS does not support directly linking lists to uploaded files
-            # Therefore 
-            #    * upload the file
-            #    * we determine the uploaded doc id based on the returned etag
-            #    * update the list values for the doc.            
-            # 
-            logging.info('uploaden bestand')
-            doc_etag = sp.upload_file(file = file_name)                       
-            logging.info('Geupload met etag: '+str(doc_etag))
+            # # MS does not support directly linking lists to uploaded files
+            # # Therefore 
+            # #    * upload the file
+            # #    * we determine the uploaded doc id based on the returned etag
+            # #    * update the list values for the doc.            
+            # # 
+            # logging.info('uploaden bestand')
+            # doc_etag = sp.upload_file(file = file_name)                       
+            # logging.info('Geupload met etag: '+str(doc_etag))
 
-            #determine id of uploaded file 
-            ret_doc_id =  sp.get_Etag_from_DocId(input_doc_etag = doc_etag)   
-            if ret_doc_id == 0:
-                result = 'ERROR: FOUTMELDING:  Doc id kon niet herleid worden van etag : '+str(doc_etag)
-                sweep_data = (doc_etag+ ','+doctype_id + ','+ objtype_id + ','+ exc_fabrikant_value + ','+ exc_locatie_value +'\n')
-                sweep_file.write (sweep_data)
-            else: 
-                #
-                # we kunnen niet een lege locatielijst patchen! 
-                # hiervoor een uitzondering maken
-                drive_itemId = sp.get_drive_itemid_from_doc_item(doc_id = ret_doc_id)
-                result = sp.update_doctype_objecttype_fabrikantLocatie( doc_id = ret_doc_id, 
-                                                                        doctype_id = doctype_id,  
-                                                                        #objtype_id_list = [objtype_id], 
-                                                                        fabrikant_value = exc_fabrikant_value,
-                                                                        locatie_value_list   = [locatie_id],
-                                                                        deel_proces_value_list = [deelproces_id]
-                                                                        )
-                # move the file to done folder
-                shutil.move(file_name, file_name_done)
+            # #determine id of uploaded file 
+            # ret_doc_id =  sp.get_Etag_from_DocId(input_doc_etag = doc_etag)   
+            # if ret_doc_id == 0:
+            #     result = 'ERROR: FOUTMELDING:  Doc id kon niet herleid worden van etag : '+str(doc_etag)
+            #     sweep_data = (doc_etag+ ','+doctype_id + ','+ objtype_id + ','+ exc_fabrikant_value + ','+ exc_locatie_value +'\n')
+            #     sweep_file.write (sweep_data)
+            # else: 
+            #     #
+            #     # we kunnen niet een lege locatielijst patchen! 
+            #     # hiervoor een uitzondering maken
+            #     drive_itemId = sp.get_drive_itemid_from_doc_item(doc_id = ret_doc_id)
+            #     result = sp.update_doctype_objecttype_fabrikantLocatie( doc_id = ret_doc_id, 
+            #                                                             doctype_id = doctype_id,  
+            #                                                             #objtype_id_list = [objtype_id], 
+            #                                                             fabrikant_value = exc_fabrikant_value,
+            #                                                             locatie_value_list   = [exc_locatie_value],
+            #                                                             deel_proces_value_list = [deelproces_id]
+            #                                                             )
+            #     # move the file to done folder
+            #     shutil.move(file_name, file_name_done)
             
-            #create string to log
-            log_string = 'index: ' + str(index) + ' | ' + \
-                            ' doctype_id: '+ str(doctype_id) + ' | ' + \
-                            ' objtype_id: '+ str(objtype_id) + ' | ' + \
-                            ' DeelProces_type_id: '+ str(deelproces_id) + ' | ' + \
-                            ' exc_file: '+ str(exc_file) + ' | ' + \
-                            ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
-                            ' locatie: ' + str (exc_locatie_value)  + ' | '\
-                            ' result: '+ str(result) + \
-                            '\n'
-            logging.info(log_string)
-            result_file.write(log_string)
-            print (log_string)            
+            # #create string to log
+            # log_string = 'index: ' + str(index) + ' | ' + \
+            #                 ' doctype_id: '+ str(doctype_id) + ' | ' + \
+            #                 ' objtype_id: '+ str(objtype_id) + ' | ' + \
+            #                 ' DeelProces_type_id: '+ str(deelproces_id) + ' | ' + \
+            #                 ' exc_file: '+ str(exc_file) + ' | ' + \
+            #                 ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
+            #                 ' locatie: ' + str (exc_locatie_value)  + ' | '\
+            #                 ' result: '+ str(result) + \
+            #                 '\n'
+            # logging.info(log_string)
+            # result_file.write(log_string)
+            # print (log_string)            
     
     except Exception as e:
-        result = 'Error: ' + repr(e)
-        log_string = 'index: ' + str(index) + ' | ' + \
-                            ' doctype_id: '+ str(doctype_id) + ' | ' + \
-                            ' objtype_id: '+ str(objtype_id) + ' | ' + \
-                            ' DeelProces_type_id: '+ str(deelproces_id) + ' | ' + \
-                            ' exc_file: '+ str(exc_file) + ' | ' + \
-                            ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
-                            ' locatie: ' + str (exc_locatie_value)  + ' | '\
-                            ' result: '+ str(result) + \
-                            '\n'
-        logging.info(log_string)
-        logging.info ('TRACE:  '+traceback.format_exc())
-        result_file.write(log_string)
-        print (log_string)
-    
+        # result = 'Error: ' + repr(e)
+        # log_string = 'index: ' + str(index) + ' | ' + \
+        #                     ' doctype_id: '+ str(doctype_id) + ' | ' + \
+        #                     ' objtype_id: '+ str(objtype_id) + ' | ' + \
+        #                     ' DeelProces_type_id: '+ str(deelproces_id) + ' | ' + \
+        #                     ' exc_file: '+ str(exc_file) + ' | ' + \
+        #                     ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
+        #                     ' locatie: ' + str (exc_locatie_value)  + ' | '\
+        #                     ' result: '+ str(result) + \
+        #                     '\n'
+        # logging.info(log_string)
+        # logging.info ('TRACE:  '+traceback.format_exc())
+        # result_file.write(log_string)
+        # print (log_string)
+        a = 1
+
 # close log file
 result_file.close()
 sweep_file.close()
