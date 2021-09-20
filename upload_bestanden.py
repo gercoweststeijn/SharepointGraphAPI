@@ -58,9 +58,9 @@ import json
 
 
 # helper function to remove NaN inserts 
+# if var is None or nan return ''(=passed val) else return the var
 def ifnan(var, val):
-  
-  if str(var) == ('NaN' or 'nan' 'NAN' ) or (var is None) : # LELEIJK!!
+  if str(var) == ('NaN' or 'nan' or 'NAN' ) or (var is None) : # LELEIJK!!
     return val
   return var
 
@@ -117,8 +117,8 @@ def read_config_file():
 ##############################################################################################
 # parameters om doorlezen van het excel te kunnen sturen
 # lees regels tussen deze waarde
-lowerbounds = 10
-upperbounds = 11
+lowerbounds = 1153
+upperbounds = 5000
 
 # haal config data op
 read_config_file()
@@ -148,21 +148,18 @@ sp = AM_SP.SP_site()
 # haal SP lijsten op
 logging.info('Ophalen sharepoint lijsten en ids')
 lists = sp.get_SP_lists()
-# get de lijst ids voor documenten en 
+# get de lijst ids voor documenten en lijsten. 
+
 for item in lists:
-    #if item['name'] ==  'TechnischDossierObjectsoorten':
-    #    objSoortList_id = item['id']  
     if item['name'] ==  SP_LIJST_DOC_SOORT:
         DocSoortList_id = item['id']
     if item['name'] ==  SP_LIJST_COL_DEEL_PRO:
         DeelprocesSoortList_id = item['id']
     if item['name'] ==  SP_LIJST_COL_LOC:
-        LocatieList_id = item['id']    
-    
+        LocatieList_id = item['id']    # stel SP_liST dictionaries vast 
 
-# stel SP_liST dictionaries vast 
+# we maken hier eenmalig dicst van zodat we niet een call hoeven doen voor elke upload / mutatie
 docDict = sp.get_listDict_titleId(list_id = DocSoortList_id)
-#objDict = sp.get_listDict_titleId(list_id = objSoortList_id)
 proDict = sp.get_listDict_titleId(list_id = DeelprocesSoortList_id)
 locDict = sp.get_listDict_titleId(list_id = LocatieList_id)
 
@@ -192,7 +189,6 @@ for index, row in excel_dataframe.iterrows():
     objtype_id=''
     deelproces_id=''
     locatie_id=''
-    #clear values
     exc_file_name=''
     exc_file=''
     exc_fabrikant_value = ''
@@ -201,17 +197,20 @@ for index, row in excel_dataframe.iterrows():
     exc_obj_row_name = ''
     try:        
         if (row[EXCEL_COL_UPLOADEN] == 'JA') and (lowerbounds <= index <= upperbounds):
+            
+            # for some reason acquiring a refrsh token does not work properly without re-initializing the object
+            # after a hour acces is denied (401) and all operations fail
+            # we reinitialize the SP object
+            sp = AM_SP.SP_site()
 
             # determine values from excel
             exc_doc_row_name = row[EXCEL_COL_DOC_TYPE]
-            #exc_obj_row_name = row[EXCEL_COL_OBJ_TYPE]
             exc_file_name = row[EXCEL_COL_NAME_TITEL]
             exc_deelproces_value = row[EXCEL_COL_DEELPROCES_TYPE]
-
             # check voor none / nan values
-            # if there are any set them to an emtpy string
+            # if there are any,  set them to an emtpy string
             if not pd.isnull(row[EXCEL_COL_FABRIKANT]): 
-                exc_fabrikant_value = ifnan(row[EXCEL_COL_LOCATIE],'')
+                exc_fabrikant_value = ifnan(row[EXCEL_COL_FABRIKANT],'')
             else: 
                 exc_fabrikant_value = ''
 
@@ -223,11 +222,7 @@ for index, row in excel_dataframe.iterrows():
             
             #<<  The following statements may throw the (key value) error >>
             # determine doc and obj based on list values 
-            
-        
-
-            doctype_id    = docDict[exc_doc_row_name]
-            #objtype_id    = objDict[exc_obj_row_name]        
+            doctype_id    = docDict[exc_doc_row_name]  
             deelproces_id =  proDict[exc_deelproces_value]
             if exc_locatie_value != '':
                 locatie_id    = locDict[exc_locatie_value]

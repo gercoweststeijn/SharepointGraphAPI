@@ -42,12 +42,15 @@ class SP_site:
     # authentiseert en bepaalt site waardes
     #
     def __init__(self):  
+        self.token = ''
+        self.refresh_token = ''
+        
         # haal config data op
         self.read_config_file()
         
         #SP variables
         self.SP_URL = (f'https://{self.SHAREPOINT_HOST_NAME}/sites/{self.SHAREPOINT_SITE}')
-        self.access_token = self.get_accesss_token()
+        self.set_tokens()
         self.HEADERS={'Authorization': 'Bearer ' + self.access_token}
 
         #site variables
@@ -70,19 +73,54 @@ class SP_site:
         self.AUTHORITY = self.AUTHORITY_BASE + self.TENANT_ID
         self.ENDPOINT = config_data['ENDPOINT']
         self.SCOPES = config_data['SCOPES']
-        self.doc_list_title = config_data['DOC_LIST_TITLE']
-                
+        self.doc_list_title = config_data['DOC_LIST_TITLE']                
         # Closing file
         config_file.close()
 
-    """
-    authentiseer en return een token
-    Voor het authentiseren wordt een URL gegenereerd die de gebruiker moet volgen 
-    om via standaard Aa en Maas authenticatie te authentiseren
-    --
-    tokens worden gecasht zodat voor een (op ?azure? ingerichte) periode niet geauthentiseerd hoeft te worden 
-    """
-    def get_accesss_token (self):
+
+#    #authentiseer en return een token
+#     #Voor het authentiseren wordt een URL gegenereerd die de gebruiker moet volgen 
+#     #om via standaard Aa en Maas authenticatie te authentiseren
+#     # set acces and refresh tokens
+#     def set_tokens (self):
+#         cache = msal.SerializableTokenCache()
+#         app = msal.PublicClientApplication(self.CLIENT_ID, authority=self.AUTHORITY, token_cache=cache)
+
+#         if self.refresh_token == '':            
+#             flow = app.initiate_device_flow(scopes=self.SCOPES)
+#             if 'user_code' not in flow:
+#                 raise Exception('Failed to create device flow')
+            
+#             print(flow['message'])
+#             result = app.acquire_token_by_device_flow(flow)
+#             self.access_token = result['access_token']
+#             self.refresh_token = result['refresh_token']            
+#             print (result)
+#         else:
+            
+#             body = {"client_id" : self.CLIENT_ID,
+#                     "scope" : self.SCOPES,
+#                     "refresh_token" : self.refresh_token,
+#                     "grant_type" : 'refresh_token'
+#                     }
+
+#             print (body)                    
+#             result = requests.post('https://login.microsoftonline.com/common/oauth2/v2.0/token HTTP/1.1',
+#                                     json = body
+#                                     )
+#             print (result)
+#             self.access_token = result['access_token']
+#             self.refresh_token = result['refresh_token']    
+
+
+
+        
+    
+    #authentiseer en return een token
+    #Voor het authentiseren wordt een URL gegenereerd die de gebruiker moet volgen 
+    #om via standaard Aa en Maas authenticatie te authentiseren
+    # set acces and refresh tokens
+    def set_tokens (self):
         cache = msal.SerializableTokenCache()
 
         if os.path.exists('token_cache.bin'):
@@ -95,18 +133,23 @@ class SP_site:
         accounts = app.get_accounts()
         result = None
         if len(accounts) > 0:
-            result = app.acquire_token_silent(self.SCOPES, account=accounts[0])
-            
+            # Aquire token via cache based on token or refresh token
+            result = app.acquire_token_silent(self.SCOPES, account=accounts[0])           
+        
         if result is None:
             flow = app.initiate_device_flow(scopes=self.SCOPES)
             if 'user_code' not in flow:
                 raise Exception('Failed to create device flow')
+            
             print(flow['message'])
-            result = app.acquire_token_by_device_flow(flow)    
-            token = result['access_token']
-        else: 
-            token = result['access_token']       
-        return token
+            result = app.acquire_token_by_device_flow(flow)
+            
+            self.access_token = result['access_token']
+            #self.refresh_token = result['refresh_token']
+        else:             
+            self.access_token = result['access_token']
+            #self.refresh_token = result['refresh_token']
+    
 
     # determine SP site ID
     def get_SP_site_id (self):
@@ -361,4 +404,3 @@ class SP_site:
                         , json = update_instructions)
         result.raise_for_status()
         return result
-   

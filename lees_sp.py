@@ -50,7 +50,7 @@ result_file = open(result_file_name, "a")
 #create SP object > based on config in SharepointConfig.py
 sp2 = AM_SP.SP_site()
 
-print(sp2.get_accesss_token())
+sp2.set_tokens()
 
 #doc_list = sp2.list_doc_items_with_all_fields()
 
