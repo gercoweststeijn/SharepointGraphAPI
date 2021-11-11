@@ -64,6 +64,12 @@ def ifnan(var, val):
     return val
   return var
 
+def get_lookupids (list):
+    ret_list = []
+    for item in list:
+        ret_list.append (item.get('LookupId'))
+    return ret_list
+
 def read_config_file():
     # stel globale variabelen vast 
     global BRON_DIRECTORY 
@@ -81,16 +87,13 @@ def read_config_file():
     global SP_LIJST_DOC_SOORT
     global SP_LIJST_COL_DEEL_PRO
     global SP_LIJST_COL_LOC
-
     # read json file 
     config_file = open('upload_config.json')
-    config_data = json.load(config_file)
-    
+    config_data = json.load(config_file)    
     # directories voor lezen / schrijven bestanden en log bestanden
     BRON_DIRECTORY = config_data['BRON_DIRECTORY']
     DONE_DIRECTORY = config_data['DONE_DIRECTORY']
     LOG_DIRECTORY = config_data['LOG_DIRECTORY']
-
     # Excel sheet configuratie
     # welke colom bevat welke data
     EXCEL_FILE = config_data['EXCEL_FILE']
@@ -102,14 +105,16 @@ def read_config_file():
     EXCEL_COL_FABRIKANT = config_data['EXCEL_COL_FABRIKANT']
     EXCEL_COL_LOCATIE = config_data['EXCEL_COL_LOCATIE']
     EXCEL_COL_UPLOADEN = config_data['EXCEL_COL_UPLOADEN']        
-
     # ingerichte SP lijsten
     SP_LIJST_DOC_SOORT = config_data['SP_LIJST_DOC_SOORT']
     SP_LIJST_COL_DEEL_PRO = config_data['SP_LIJST_COL_DEEL_PRO']
     SP_LIJST_COL_LOC = config_data['SP_LIJST_COL_LOC']
-
     # Closing file
     config_file.close()
+
+# procedure to set the resultfile 
+
+
 
 
 ##############################################################################################
@@ -117,12 +122,13 @@ def read_config_file():
 ##############################################################################################
 # parameters om doorlezen van het excel te kunnen sturen
 # lees regels tussen deze waarde
-lowerbounds = 1153
-upperbounds = 5000
+lowerbounds = 0
+upperbounds = 8000
 
 # haal config data op
 read_config_file()
 
+# set log and result file
 # set a logging file 
 # Determine lof file name
 now = datetime.datetime.now()
@@ -136,11 +142,6 @@ logging.basicConfig(  filename= log_file_name
 # open a file to record results
 result_file_name = LOG_DIRECTORY+'\ResultFile_'+str(lowerbounds)+'_'+str(upperbounds)+'___'+ts+'.txt'
 result_file = open(result_file_name, "a", encoding='utf-8')
-
-# open a file to record failures - to be processed later
-sweep_file_name = LOG_DIRECTORY+'\sweepFile_'+str(lowerbounds)+'_'+str(upperbounds)+'___'+ts+'.txt'
-sweep_file = open(sweep_file_name, "a", encoding='utf-8')
-sweep_file.write ('doc_etag'+ ','+'doctype_id' + ','+ 'objtype_id' + ','+ 'exc_fabrikant_value' + ','+ 'exc_locatie_value')
 
 #create SP object > based on config in sharepoint_config.json
 sp = AM_SP.SP_site()
@@ -200,8 +201,9 @@ for index, row in excel_dataframe.iterrows():
             
             # for some reason acquiring a refrsh token does not work properly without re-initializing the object
             # after a hour acces is denied (401) and all operations fail
-            # we reinitialize the SP object
-            sp = AM_SP.SP_site()
+            # we reinitialize the SP object evry 20 files
+            if index % 20 == 0:
+                sp = AM_SP.SP_site()
 
             # determine values from excel
             exc_doc_row_name = row[EXCEL_COL_DOC_TYPE]
@@ -229,66 +231,137 @@ for index, row in excel_dataframe.iterrows():
             # determine file based on file dict
             exc_file = file_dict[exc_file_name]
             
-            # format file - location
-            file_name = BRON_DIRECTORY+'/'+ str(exc_file)            
-            file_name_done = DONE_DIRECTORY+'/'+ str(exc_file)   
+            # bepaal of het document al op SP staat 
+            existing_doc_id = sp.get_docid_on_filename(filename = exc_file)
+            # het document bestaat nog niet > we uploaden deze 
+            if existing_doc_id == 0:
 
-            # MS does not support directly linking lists to uploaded files
-            # Therefore 
-            #    * upload the file
-            #    * we determine the uploaded doc id based on the returned etag
-            #    * update the list values for the doc.            
-            # 
-            logging.info('uploaden bestand')
-            doc_etag = sp.upload_file(file = file_name)                       
-            logging.info('Geupload met etag: '+str(doc_etag))
 
-            #determine id of uploaded file 
-            ret_doc_id =  sp.get_Etag_from_DocId(input_doc_etag = doc_etag)   
-            if ret_doc_id == 0:
-                result = 'ERROR: FOUTMELDING:  Doc id kon niet herleid worden van etag : '+str(doc_etag)
-                sweep_data = (doc_etag+ ','+doctype_id + ','+ objtype_id + ','+ exc_fabrikant_value + ','+ exc_locatie_value +'\n')
-                sweep_file.write (sweep_data)
-            else: 
-                #
-                # we kunnen niet een lege locatielijst patchen! 
-                # hiervoor een uitzondering maken
-                drive_itemId = sp.get_drive_itemid_from_doc_item(doc_id = ret_doc_id)
-                result = sp.update_doctype_objecttype_fabrikantLocatie( doc_id = ret_doc_id, 
-                                                                        doctype_id = doctype_id,  
-                                                                        #objtype_id_list = [objtype_id], 
-                                                                        fabrikant_value = exc_fabrikant_value,
-                                                                        locatie_value_list   = [locatie_id],
-                                                                        deel_proces_value_list = [deelproces_id]
-                                                                        )
-                # move the file to done folder
-                shutil.move(file_name, file_name_done)
+                # format file - location
+                file_name = BRON_DIRECTORY+'/'+ str(exc_file)            
+                file_name_done = DONE_DIRECTORY+'/'+ str(exc_file)   
+
+                # MS does not support directly linking lists to uploaded files
+                # Therefore 
+                #    * upload the file
+                #    * we determine the uploaded doc id based on the returned etag
+                #    * update the list values for the doc.            
+                # 
+
+                logging.info('uploaden bestand')
+                doc_etag = sp.upload_file(file = file_name)                       
+                logging.info('Geupload met etag: '+str(doc_etag))
+
+                #determine id of uploaded file 
+                ret_doc_id =  sp.get_Etag_from_DocId(input_doc_etag = doc_etag)   
+                if ret_doc_id == 0:
+                    result = 'ERROR: FOUTMELDING:  Doc id kon niet herleid worden van etag : '+str(doc_etag)
+                else: 
+                    result = sp.update_doctype_objecttype_fabrikantLocatie( doc_id = ret_doc_id, 
+                                                                            doctype_id = doctype_id,  
+                                                                            #objtype_id_list = [objtype_id], 
+                                                                            fabrikant_value = exc_fabrikant_value,
+                                                                            locatie_value_list   = [locatie_id],
+                                                                            deel_proces_value_list = [deelproces_id]
+                                                                            )
+                    # move the file to done folder
+                    #shutil.move(file_name, file_name_done)
+                
+                #create string to log
+                log_string = 'index: ' + str(index) + ' | ' + \
+                                ' doctype_id: '+ str(doctype_id) + ' | ' + \
+                                ' DeelProces_type_id: '+ str(deel_proces_value_list) + ' | ' + \
+                                ' exc_file: '+ str(exc_file_name) + ' | ' + \
+                                ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
+                                ' locatie: ' + str (locatie_value_list)  + ' | '\
+                                ' result: '+ str(result) + \
+                                '\n'
+                logging.info(log_string)
+                result_file.write(log_string)
+                print (log_string)    
             
-            #create string to log
-            log_string = 'index: ' + str(index) + ' | ' + \
-                            ' doctype_id: '+ str(doctype_id) + ' | ' + \
-                            ' objtype_id: '+ str(objtype_id) + ' | ' + \
-                            ' DeelProces_type_id: '+ str(deelproces_id) + ' | ' + \
-                            ' exc_file: '+ str(exc_file) + ' | ' + \
-                            ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
-                            ' locatie: ' + str (exc_locatie_value)  + ' | '\
-                            ' result: '+ str(result) + \
-                            '\n'
-            logging.info(log_string)
-            result_file.write(log_string)
-            print (log_string)            
+            # het document bestaat al wel > we halen deze op en patchen 
+            else:
+                
+                logging.info('Bestand staat al op sharepoint we gaan patchen')
+
+                doc_item_with_fields = sp.get_doc_item_with_all_fields(doc_id= existing_doc_id)
+                existing_doc_type = doc_item_with_fields['fields']['td_documentsoortLookupId']
+                if 'td_fabrikant' in doc_item_with_fields['fields']:
+                    existing_fabrikant_value =  doc_item_with_fields['fields']['td_fabrikant']
+                else:
+                    existing_fabrikant_value = ''
+
+                if  existing_doc_type != doctype_id:
+                    doc_type_match = False
+                    result = 'Doc type matcht niet met bestaande doctype:'+str(existing_doc_id)
+                else:
+                    doc_type_match = True
+                if  existing_fabrikant_value != exc_fabrikant_value:
+                    fabrikant_value_match = True
+                    result = result + 'fabrikant value matcht niet met bestaande fabrikant value:' + existing_fabrikant_value
+                else:
+                    fabrikant_value_match = True
+
+                if fabrikant_value_match and doc_type_match:
+                    updaten = False
+                    locatie_value_list = get_lookupids(doc_item_with_fields['fields']['td_locatie_x002d_col'])
+
+                    if locatie_id != '' and int(locatie_id) not in locatie_value_list:
+                       locatie_value_list.append(int(locatie_id))
+                       updaten = True
+
+                    deel_proces_value_list = get_lookupids(doc_item_with_fields['fields']['td_deelproces_x002d_col'])
+                    if deelproces_id != '' and int(deelproces_id) not in deel_proces_value_list:
+                        deel_proces_value_list.append(int(deelproces_id))
+                        updaten = True
+
+                    if updaten:
+                        # update drive item met geupdate waarden
+                        result = sp.update_doctype_objecttype_fabrikantLocatie( doc_id = existing_doc_id, 
+                                                                                doctype_id = doctype_id,  
+                                                                                #objtype_id_list = [objtype_id], 
+                                                                                fabrikant_value = exc_fabrikant_value,
+                                                                                locatie_value_list   = locatie_value_list,
+                                                                                deel_proces_value_list = deel_proces_value_list
+                                                                                )
+
+                        result = result + ' Bijgewerkt'
+                        log_string = 'index: ' + str(index) + ' | ' + \
+                                ' doctype_id: '+ str(doctype_id) + ' | ' + \
+                                ' DeelProces_type_id: '+ str(deel_proces_value_list) + ' | ' + \
+                                ' exc_file: '+ str(exc_file_name) + ' | ' + \
+                                ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
+                                ' locatie: ' + str (locatie_value_list)  + ' | '\
+                                ' result: '+ str(result) + \
+                                '\n'
+                        logging.info(log_string)
+                        result_file.write(log_string)
+                        print (log_string)    
+                    else: 
+                        result = 'Updaten niet nodig deze locatie en deelproces waarde zijn al ingevuld '    
+                        log_string = 'index: ' + str(index) + ' | ' + \
+                                    ' doctype_id: '+ str(doctype_id) + ' | ' + \
+                                    ' DeelProces_type_id: '+ str(deel_proces_value_list) + ' | ' + \
+                                    ' exc_file: '+ str(exc_file_name) + ' | ' + \
+                                    ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
+                                    ' locatie: ' + str (locatie_value_list)  + ' | '\
+                                    ' result: '+ str(result) + \
+                                    '\n'
+                        logging.info(log_string)
+                        result_file.write(log_string)
+                        print (log_string)   
     
     except Exception as e:
         result = 'Error: ' + repr(e)
         log_string = 'index: ' + str(index) + ' | ' + \
-                            ' doctype_id: '+ str(doctype_id) + ' | ' + \
-                            ' objtype_id: '+ str(objtype_id) + ' | ' + \
-                            ' DeelProces_type_id: '+ str(deelproces_id) + ' | ' + \
-                            ' exc_file: '+ str(exc_file) + ' | ' + \
-                            ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
-                            ' locatie: ' + str (exc_locatie_value)  + ' | '\
-                            ' result: '+ str(result) + \
-                            '\n'
+                    ' doctype_id: '+ str(doctype_id) + ' | ' + \
+                    ' DeelProces_type_id: '+ str(deel_proces_value_list) + ' | ' + \
+                    ' exc_file: '+ str(exc_file_name) + ' | ' + \
+                    ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
+                    ' locatie: ' + str (locatie_value_list)  + ' | '\
+                    ' result: '+ str(result) + \
+                    '\n'
         logging.info(log_string)
         logging.info ('TRACE:  '+traceback.format_exc())
         result_file.write(log_string)
@@ -296,4 +369,4 @@ for index, row in excel_dataframe.iterrows():
     
 # close log file
 result_file.close()
-sweep_file.close()
+

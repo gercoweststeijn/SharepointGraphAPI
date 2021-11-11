@@ -9,7 +9,7 @@ import os, shutil, datetime, sys
 
 
 #bron_map = 'C:/Temp/knipbestanden/'
-bron_map = 'C:/Temp/knipbestanden/'
+bron_map = 'C:/Temp/_Te splitsen documentatie'
 doel_map ='C:/Temp/rwzibron/'
 
 now = datetime.datetime.now()
@@ -21,9 +21,11 @@ counter_all = 0
 counter_cp = 0
 for root, dirs, files in os.walk(bron_map): 
    for file in files:
+       
       counter_all = counter_all +1 
       doel_file = os.path.join(doel_map,file)
       path_file = os.path.join(root,file)
+      print (doel_file)
       if not os.path.exists(doel_file):
          counter_cp = counter_cp +1
          

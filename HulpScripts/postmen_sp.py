@@ -1,5 +1,5 @@
 import pandas as pd
-from   MSGraphAPI import SharepointGraphAPI as AM_SP 
+from   MSGraphAPI import sharepoint_graph_API as AM_SP 
 import logging
 import datetime
 import traceback
@@ -33,11 +33,12 @@ result_file = open(result_file_name, "a")
 #create SP object > based on config in SharepointConfig.py
 sp2 = AM_SP.SP_site()
 print()
-print (sp2.get_accesss_token())
+#print (sp2.get_accesss_token())
+print (sp2.access_token)
 print()
 #doc_list = sp2.list_doc_items_with_all_fields()
 print('-------------------------')
-item = sp2.get_doc_item_with_all_fields(doc_id = 4288)
+#item = sp2.get_doc_item_with_all_fields(doc_id = 4288)
 print (item)
 print('-------------------------')
 

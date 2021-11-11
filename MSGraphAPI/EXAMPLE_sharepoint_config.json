@@ -1,0 +1,16 @@
+{
+    "TENANT_ID" : "xyz"
+    ,"CLIENT_ID" : "xyz"
+    ,"SHAREPOINT_SITE" : "xyz"
+    
+    ,"SHAREPOINT_HOST_NAME" : "wsaaenmaas.sharepoint.com"
+    ,"AUTHORITY_BASE" : "https://login.microsoftonline.com/"
+    ,"ENDPOINT" : "https://graph.microsoft.com/v1.0"
+    ,"SCOPES" : [
+        "Files.ReadWrite.All",
+        "Sites.ReadWrite.All",
+        "User.Read",
+        "User.ReadBasic.All"
+    ]
+    ,"DOC_LIST_TITLE" : "Documenten" 
+}
