@@ -10,7 +10,7 @@ import os, shutil, datetime, sys
 
 #bron_map = 'C:/Temp/knipbestanden/'
 bron_map = 'C:/Temp/_Te splitsen documentatie'
-doel_map ='C:/Temp/rwzibron/'
+doel_map ='C:/Temp/rwzibron2/'
 
 now = datetime.datetime.now()
 ts  = now.strftime('%Y-%m-%d-%H_%M_%S')
