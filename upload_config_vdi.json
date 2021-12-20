@@ -1,10 +1,9 @@
 {
-    "BRON_DIRECTORY" : "C:/Temp/rwzibron"
+    "BRON_DIRECTORY" : "D:/sharepoint_data/bron"
    ,"DONE_DIRECTORY" : ""
-   ,"LOG_DIRECTORY" : "C:/Temp/log/"
-   ,"EXCEL_FILE" : "C:/Temp/Categorisering opleverdossier_fase 1 2.xlsx"
+   ,"LOG_DIRECTORY" : "D:/sharepoint_data/log"
+   ,"EXCEL_FILE" : "D:/sharepoint_data/Categorisering opleverdossier_fase 1 2.xlsx"
    ,"BLAD"       : "Fase 1_Kniplijst Martin"
-   ,"BESTAND_MET_ZONDER_EXTENSIE" : "ZONDER"
    ,"EXCEL_COL_NAME_TITEL" : "Documentnaam"
    ,"EXCEL_COL_DOC_TYPE"   : "Documentsoort"
    ,"EXCEL_COL_OBJ_TYPE"   : ""

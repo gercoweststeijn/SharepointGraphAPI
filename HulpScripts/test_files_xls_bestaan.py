@@ -1,49 +1,8 @@
 #*********************************************************************************************************
 #  versie    auteur          toelichting
 #  0.1       Weststeijn      creatie
-#  0.2       Weststeijn      - SP inrichting aangepast van object naar deelproces - object vooralsnog 'uitgesterd'
-#                            - waardes voor het bepalen van de upload (nu allemaal) naar config file verplaatst
-#*********************************************************************************************************
-# Dit script upload een set aan bestanden naar een sharepoint omgeving via microsoft graph apis
-# (https://docs.microsoft.com/en-us/graph/)
-# het doorloopt daarvoor de volgende stappen: 
-# - haal config data
-# - voer basis zaken uit: zet logging aan etc..
-# - maak een SP object
-# - haal SP lijsten op - waarmee we de docs gaan taggen
-# - lees uit te lezen directory met te uploaden bestanden 
-# - lees excel met te uploaden docs
-# - loop door het excel 
-#   - match: 
-#       - bestandsnaam met bestanden in dir
-#       - SP lijsten met excel tag
-#   - upload doc
-#   - tag bestand met lijst waarde
-#
-#
-
-#*********************************************************************************************************
-# Benodigd
-# - Sharepoint_graph_api.py = voor aanroepen van graph API
-# Verder:
-#     -pandas as pd
-#     -AM_SP 
-#     -logging
-#     -datetime
-#     -traceback
-#     -os
-#     - shutil
-#     - json
-###########################################################################################################
-# config files 
-#  * upload_config.json: config voor dit script, oa met te gebruiken directories en excel bestand
-#  * sharepoint_config.json: config voor gebruik SP 
-#*********************************************************************************************************
-# Authenticatie vind plaats via een external 
-# device flow
-# De flow maakt een url aan waarop een gebruiker 
-# via de standaard auth. van AM kan authenticeren
-#
+# 
+# loop door excel om te checken of bestadnen in folder staan / aanwezig zijn
 #
 #*********************************************************************************************************
 
@@ -133,9 +92,6 @@ result_file_name = LOG_DIRECTORY+'bestanden_bestaan_'+ts+'.txt'
 result_file = open(result_file_name, "a", encoding='utf-8')
 
 
-
-
-
 data = pd.read_excel (EXCEL_FILE, sheet_name = BLAD)
 excel_dataframe = pd.DataFrame(data, columns= [EXCEL_COL_NAME_TITEL,
                                                EXCEL_COL_DOC_TYPE,
@@ -149,8 +105,13 @@ excel_dataframe = pd.DataFrame(data, columns= [EXCEL_COL_NAME_TITEL,
 
 file_dict = {}
 directory = BRON_DIRECTORY
-for file in os.listdir(directory):
-    f_name = (file[0:file.index('.')])
+
+for file in os.listdir(directory):    
+    # not all files seem to have and extension
+    if '.' in file:
+        f_name = (file[0:file.index('.')])
+    else:
+        f_name = file
     file_dict[f_name] = file
 
 # we kunnen nu door het excel loopen 

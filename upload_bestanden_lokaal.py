@@ -3,6 +3,7 @@
 #  0.1       Weststeijn      creatie
 #  0.2       Weststeijn      - SP inrichting aangepast van object naar deelproces - object vooralsnog 'uitgesterd'
 #                            - waardes voor het bepalen van de upload (nu allemaal) naar config file verplaatst
+#  0.3       Weststeijn      verbeterde foutafhandeling
 #*********************************************************************************************************
 # Dit script upload een set aan bestanden naar een sharepoint omgeving via microsoft graph apis
 # (https://docs.microsoft.com/en-us/graph/)
@@ -19,6 +20,12 @@
 #       - SP lijsten met excel tag
 #   - upload doc
 #   - tag bestand met lijst waarde
+#      
+#    * Bestanden die al op SP staan matchen we met de door excel aangelevede tags 
+#      wanneer deze verschillen 
+#                               - breiden we dit uit voor meervoudige tags
+#                               - geven we een fout voor enkelvoudige tags (lijst die max 1 waarde kan hebben)
+#   
 #
 #
 
@@ -55,6 +62,28 @@ import os
 import shutil
 import json
 
+# ************************
+# exceptions
+#*************************
+class Error(Exception):
+    """Base class for other exceptions"""
+    pass
+
+class e_doc_type_doesnot_exist(Error):
+    """Raised when doc type does not match"""
+    pass
+
+class e_deel_proces_doesnot_exist(Error):
+    """Raised when deel process does not match"""
+    pass
+
+class e_locatie_doesnot_exist(Error):
+    """Raised when locatie does not match"""
+    pass
+
+class e_bestand_doesnot_exist(Error):
+    """Raised when bestand does not match"""
+    pass
 
 # helper function to remove NaN inserts 
 # if var is None or nan return ''(=passed val) else return the var
@@ -63,11 +92,84 @@ def ifnan(var, val):
     return val
   return var
 
+#
+# haal lijst met lookupids op
 def get_lookupids (list):
     ret_list = []
     for item in list:
         ret_list.append (item.get('LookupId'))
     return ret_list
+
+# mooie :-) if-else constructie 
+# die de waarde uit een dictionary ophaald of een exception geeft als deze niet bestaat
+# gebruiken we om de excel kolom waardes te matchen tegen de SP lijsten 
+def get_dict_value (dict, key_value, nan_allowed, exception_name):
+    if nan_allowed == 1:
+        if key_value == '':
+            return ''
+        else:
+            if key_value in dict:
+                return dict[key_value]
+            else:
+                raise exception_name
+    else: 
+        if key_value in dict:
+            return dict[key_value]
+        else:
+            raise exception_name
+
+
+#
+#
+#  Dit lijkt niet echt heel veel sneller. 
+#     De excell lijst snoeien is wellicht beter idee
+def uploaded_prev_session (file, doc_type_id, deelproces_id, locatie_id, fabrikant, sp_uploaded_docs):
+    
+    for doc in sp_uploaded_docs:  
+
+        if locatie_id == '':
+            locatie_id = '0'
+        
+        #mandatory fields 
+        existing_file            =  doc['fields']['LinkFilename']
+        existing_doc_type_id     =  doc['fields']['td_documentsoortLookupId']
+        existing_deel_proces_value_list = get_lookupids(doc['fields']['td_deelproces_x002d_col'])    
+
+        #
+        # fabrikant and location may be left empty
+        # bepaal of er een fabr waarde is
+        if 'td_fabrikant' in doc['fields']:
+            existing_fabrikant_value =  doc['fields']['td_fabrikant']
+        else:
+            existing_fabrikant_value = ''
+        
+        #  if there is a location
+        #        get list of location values 
+        #  else the location is empty
+        if 'td_locatie_x002d_col' in doc['fields']:
+            existing_locatie_value_list = get_lookupids(doc['fields']['td_locatie_x002d_col'])
+            existing_locatie_leeg = False            
+        else:
+            existing_locatie_leeg = True
+
+        if  ( existing_file == file
+            and  existing_doc_type_id == doc_type_id
+            and  ((existing_fabrikant_value == fabrikant)
+                  or
+                  (fabrikant == ''))
+            and  int(deelproces_id) in existing_deel_proces_value_list
+
+            #locatie is leeg en matched en matcht ook gelijk voor locatie is leeg en matched niet -> ook dat kan als ie door een ander record is geupdate. 
+            # Want we hoeven niet te updaten
+            and  ( locatie_id== '0' 
+                  or 
+                  ((not existing_locatie_leeg) and int(locatie_id) in existing_locatie_value_list)                  
+                  )
+            ):
+                return True
+    
+    # nothing found in the loop
+    return False
 
 # 
 # Read the config file and set the values as global variables 
@@ -78,6 +180,7 @@ def read_config_file():
     global LOG_DIRECTORY
     global EXCEL_FILE 
     global BLAD 
+    global BESTAND_MET_ZONDER_EXTENSIE
     global EXCEL_COL_NAME_TITEL 
     global EXCEL_COL_DOC_TYPE
     #global EXCEL_COL_OBJ_TYPE 
@@ -88,9 +191,10 @@ def read_config_file():
     global SP_LIJST_DOC_SOORT
     global SP_LIJST_COL_DEEL_PRO
     global SP_LIJST_COL_LOC
+    
     # read json file 
-    config_file = open('upload_config.json')
-    config_data = json.load(config_file)    
+    config_file = open('upload_config_lokaal.json')
+    config_data = json.load(config_file)
     # directories voor lezen / schrijven bestanden en log bestanden
     BRON_DIRECTORY = config_data['BRON_DIRECTORY']
     DONE_DIRECTORY = config_data['DONE_DIRECTORY']
@@ -99,6 +203,7 @@ def read_config_file():
     # welke colom bevat welke data
     EXCEL_FILE = config_data['EXCEL_FILE']
     BLAD = config_data['BLAD']
+    BESTAND_MET_ZONDER_EXTENSIE = config_data['BESTAND_MET_ZONDER_EXTENSIE']
     EXCEL_COL_NAME_TITEL = config_data['EXCEL_COL_NAME_TITEL']
     EXCEL_COL_DOC_TYPE = config_data['EXCEL_COL_DOC_TYPE']
     #EXCEL_COL_OBJ_TYPE = config_data['EXCEL_COL_OBJ_TYPE']
@@ -119,12 +224,13 @@ def read_config_file():
 ##############################################################################################
 # parameters om doorlezen van het excel te kunnen sturen
 # lees regels tussen deze waarde
-lowerbounds = 0
-upperbounds = 999999999
+lowerbounds = 3431
+upperbounds = 999999
+
+
 
 # haal config data op
 read_config_file()
-
 # set log and result file
 # set a logging file 
 # Determine lof file name
@@ -139,8 +245,11 @@ logging.basicConfig(  filename= log_file_name
                     , level=logging.DEBUG)
 
 # open a file to record results
-result_file_name = LOG_DIRECTORY+'\ResultFile_'+str(lowerbounds)+'_'+str(upperbounds)+'___'+ts+'.txt'
+result_file_name = LOG_DIRECTORY+'\ResultFile_Martin_rerun_'+str(lowerbounds)+'_'+str(upperbounds)+'___'+ts+'.csv'
 result_file = open(result_file_name, "a", encoding='utf-8')
+header = 'INDEX | EXCEL_REGEL | DOCTYPE_ID | DEELPROCES_TYPE_ID | LOCATIE | FABRIKANT | BESTAND | RESULT | RESULT_REMARKS | RESULT PARAMETERS+'\n'
+result_file.write(header)
+
 
 #create SP object > based on config in sharepoint_config.json
 sp = AM_SP.SP_site()
@@ -150,6 +259,13 @@ logging.info('Ophalen sharepoint lijsten en ids')
 lists = sp.get_SP_lists()
 # get de lijst ids voor documenten en lijsten. 
 
+
+# we uploaden de bestanden en voegen daar tags aan toe
+# Deze tags staan in lijsten in SP 
+# we maken hier eenmalig dicst van die lijsten (naam + ID)  van 
+# zodat we niet een call hoeven doen voor elke upload / mutatie
+#
+# 1) We bepalen het lijst_id
 for item in lists:
     if item['name'] ==  SP_LIJST_DOC_SOORT:
         DocSoortList_id = item['id']
@@ -157,11 +273,7 @@ for item in lists:
         DeelprocesSoortList_id = item['id']
     if item['name'] ==  SP_LIJST_COL_LOC:
         LocatieList_id = item['id']    # stel SP_liST dictionaries vast 
-
-# we uploaden de bestanden en voegen daar tags aan toe
-# Deze tags staan in lijsten in SP 
-# we maken hier eenmalig dicst van die lijsten (naam + ID)  van 
-# zodat we niet een call hoeven doen voor elke upload / mutatie
+# 2) we halen de items uit de lijst op
 docDict = sp.get_listDict_titleId(list_id = DocSoortList_id)
 proDict = sp.get_listDict_titleId(list_id = DeelprocesSoortList_id)
 locDict = sp.get_listDict_titleId(list_id = LocatieList_id)
@@ -177,13 +289,30 @@ excel_dataframe = pd.DataFrame(data, columns= [EXCEL_COL_NAME_TITEL,
                                                EXCEL_COL_DEELPROCES_TYPE]
                               )
 
+#
+# For the usecase where one wants to rerun an excel file 
+# that already has a lot of succesfully uploaded files 
+# we create a list of all uploaded files 
+SP_uploaded_Docs = sp.list_doc_items_with_all_fields()
+#
+# map onto dataframe 
+#
+
+
+
+
 # uitlezen directory waar alle bestanden staan die we willen uploaden
-# we maken hier een dict van om 
+# we maken hier een dict van om  
 logging.info('uitlezen directory - samenstellen file dict')
 file_dict = {}
 directory = BRON_DIRECTORY
 for file in os.listdir(directory):
-    f_name = (file[0:file.index('.')])
+    # not all files seem to have and extension
+    if '.' in file and BESTAND_MET_ZONDER_EXTENSIE != 'MET':
+        # er zijn een aantal bestanden met een '.' in de naam - we zoeken de laatste .
+        f_name = (file[0:file.rindex('.')])
+    else:
+        f_name = file
     file_dict[f_name] = file
 
 #******************************************************************************************************
@@ -192,19 +321,26 @@ for file in os.listdir(directory):
 # we kunnen nu door het excel loopen 
 logging.info('loop excel')
 for index, row in excel_dataframe.iterrows():
-    #clear values
+    #clear values & set them to null for logging
     doctype_id=''
     objtype_id=''
     deelproces_id=''
     locatie_id=''
     exc_file_name=''
-    exc_file=''
+    file_onDisk=''
     exc_fabrikant_value = ''
     exc_locatie_value = ''
     exc_doc_row_name = ''
     exc_obj_row_name = ''
-    try:        
-        if (row[EXCEL_COL_UPLOADEN] == 'JA') and (lowerbounds <= index <= upperbounds):
+    result = ''
+    result_remark = ''
+    result_param = ''
+    excel_row_log_values = ''
+
+
+    try: 
+        # upload kolom is komen te vervallen /*(row[EXCEL_COL_UPLOADEN] == 'JA') and*/
+        if  (lowerbounds <= index <= upperbounds):
             
             # for some reason acquiring a refresh token does not work properly without re-initializing the object
             # after a hour acces is denied (401) and all operations fail
@@ -233,25 +369,24 @@ for index, row in excel_dataframe.iterrows():
             else: 
                 exc_locatie_value = ''
             
-            #<<  The following statements may throw the (key value) error >>
-            # we check to see if the excel tag is a tag that has been configured in SP
-            doctype_id    = docDict[exc_doc_row_name]  
-            deelproces_id =  proDict[exc_deelproces_value]
-            if exc_locatie_value != '':
-                locatie_id    = locDict[exc_locatie_value]
-            # We check to see whether the excel file exists in the local-folder that should hold all 'to be uploaded files'
-            exc_file = file_dict[exc_file_name]
-            
+            # keep excel values for logging
+            excel_row_log_values = 'DocType: '+str(exc_doc_row_name)+' Deelproces: '+str(exc_deelproces_value)+' Fabrikant: '+str(exc_fabrikant_value) +' Locatie: '+str(exc_locatie_value) +' Bestandsnaam: '+str(exc_file_name)
+
+            # we checken of de in de excel gegeven waardes wel bestaan, in resp SP en de bron directory voor het bestand
+            doctype_id          = get_dict_value (dict = docDict, key_value = exc_doc_row_name, nan_allowed=0, exception_name=e_doc_type_doesnot_exist)
+            deelproces_id       = get_dict_value (dict = proDict, key_value = exc_deelproces_value, nan_allowed=0, exception_name=e_deel_proces_doesnot_exist)
+            locatie_id          = get_dict_value (dict = locDict, key_value = exc_locatie_value, nan_allowed=1, exception_name=e_locatie_doesnot_exist)
+            file_onDisk         = get_dict_value (dict = file_dict, key_value = exc_file_name, nan_allowed=0, exception_name=e_bestand_doesnot_exist)
+   
             # bepaal of het document al op SP staat 
-            existing_doc_id = sp.get_docid_on_filename(filename = exc_file)
+            existing_doc_id = sp.get_docid_on_filename(filename = file_onDisk)
             
             # 0 -> het document bestaat nog niet > we uploaden deze 
             if existing_doc_id == 0:
 
                 # format file - location
-                file_name = BRON_DIRECTORY+'/'+ str(exc_file)            
-                file_name_done = DONE_DIRECTORY+'/'+ str(exc_file)   
-
+                file_name = BRON_DIRECTORY+'/'+ str(file_onDisk)            
+                
                 # MS does not support directly linking lists to uploaded files
                 # Therefore 
                 #    * upload the file
@@ -263,9 +398,13 @@ for index, row in excel_dataframe.iterrows():
                 logging.info('Geupload met etag: '+str(doc_etag))
 
                 #determine id of uploaded file 
+                # 
                 ret_doc_id =  sp.get_Etag_from_DocId(input_doc_etag = doc_etag)   
                 if ret_doc_id == 0:
-                    result = 'ERROR: FOUTMELDING:  Doc id kon niet herleid worden van etag : '+str(doc_etag)
+                    result = 'ERROR'  
+                    result_remark = 'FOUTMELDING:  Doc id kon niet herleid worden van etag'
+                    result_param = str(doc_etag)
+
                 else: 
                     result = sp.update_doctype_objecttype_fabrikantLocatie( doc_id = ret_doc_id, 
                                                                             doctype_id = doctype_id,  
@@ -275,16 +414,9 @@ for index, row in excel_dataframe.iterrows():
                                                                             deel_proces_value_list = [deelproces_id]
                                                                             )
                     
-                
+                result_remark ='Geupload'
                 #create string to log
-                log_string = 'index: ' + str(index) + ' | ' + \
-                                ' doctype_id: '+ str(doctype_id) + ' | ' + \
-                                ' DeelProces_type_id: '+ str(deel_proces_value_list) + ' | ' + \
-                                ' exc_file: '+ str(exc_file_name) + ' | ' + \
-                                ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
-                                ' locatie: ' + str (locatie_value_list)  + ' | '\
-                                ' result: '+ str(result) + \
-                                '\n'
+                log_string = str(index) + ' | '+str(excel_row_log_values) + ' | '+str(doctype_id) + ' | '+str(deelproces_id) + ' | '+str (exc_locatie_value)  + ' | '+ str(exc_fabrikant_value) + ' | '+str(file_onDisk) + ' | '+ str(result)   + ' | '+result_remark +' | ' result_param'\n'
                 logging.info(log_string)
                 result_file.write(log_string)
                 # we printen de voortgang 
@@ -293,14 +425,15 @@ for index, row in excel_dataframe.iterrows():
             # het document bestaat al wel op SP  -> we halen deze op en patchen 
             else:
                 
-                logging.info('Bestand staat al op sharepoint we gaan patchen')
+                locatie_value_list = ''
+                logging.info('Bestand staat al op sharepoint we gaan (mogelijk) patchen')
 
                 # haal de tags voor het sp document op
                 doc_item_with_fields = sp.get_doc_item_with_all_fields(doc_id= existing_doc_id)
                 #
                 # We bepalen per tag of de excel waarde nieuw is of dat deze al bestaat
                 # Fabrikant en doc type kan maar 1 waarde hebben -> als het er meer zijn geeft dit een fout 
-                #   locatie en deelproces kunnen meerdere waarden hebben -> als dit zo is dan moeten we deze toevoegen en het bestand patchen
+                #   locatie en deelproces kunnen meerdere waarden hebben -> als de nieuwe en bestaande waarden verschillen dan moeten we deze toevoegen en het bestand patchen
                 #       Als dit echter niet zo is dan patchen we het bestand niet
                 #
                 #
@@ -319,13 +452,15 @@ for index, row in excel_dataframe.iterrows():
                 # match de doc types uit excel en SP
                 if  existing_doc_type != doctype_id:
                     doc_type_match = False
-                    result = 'Doc type matcht niet met bestaande doctype:'+str(existing_doc_id)
+                    result_remark = 'Doc type matcht niet met bestaande doctype: '
+                    result_param =  str(existing_doc_id)+
                 else:
                     doc_type_match = True
                 #match de fabr waarde uit excel en SP
                 if  existing_fabrikant_value != exc_fabrikant_value:
                     fabrikant_value_match = True
-                    result = result + 'fabrikant value matcht niet met bestaande fabrikant value:' + existing_fabrikant_value
+                    result_remark = result_remark+'fabrikant value matcht niet met bestaande fabrikant value:' + 
+                    result_param =  existing_fabrikant_value
                 else:
                     fabrikant_value_match = True
 
@@ -357,62 +492,65 @@ for index, row in excel_dataframe.iterrows():
                                                                                 locatie_value_list   = locatie_value_list,
                                                                                 deel_proces_value_list = deel_proces_value_list
                                                                                 )
-
-                        result = result + ' Bijgewerkt'
-                        log_string = 'index: ' + str(index) + ' | ' + \
-                                ' doctype_id: '+ str(doctype_id) + ' | ' + \
-                                ' DeelProces_type_id: '+ str(deel_proces_value_list) + ' | ' + \
-                                ' exc_file: '+ str(exc_file_name) + ' | ' + \
-                                ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
-                                ' locatie: ' + str (locatie_value_list)  + ' | '\
-                                ' result: '+ str(result) + \
-                                '\n'
-                        logging.info(log_string)
+                        result_remark = 'Bestand is bijgewerkt'
+                        log_string = str(index) + ' | '+str(excel_row_log_values) + ' | '+str(doctype_id) + ' | '+str(deelproces_id) + ' | '+str (exc_locatie_value)  + ' | '+ str(exc_fabrikant_value) + ' | '+str(file_onDisk) + ' | '+ str(result)   + ' | '+result_remark +' | ' result_param'\n'logging.info(log_string)
                         result_file.write(log_string)
                         print (log_string)    
                     else: 
-                        result = 'Updaten niet nodig deze locatie en deelproces waarde zijn al ingevuld '    
-                        log_string = 'index: ' + str(index) + ' | ' + \
-                                    ' doctype_id: '+ str(doctype_id) + ' | ' + \
-                                    ' DeelProces_type_id: '+ str(deel_proces_value_list) + ' | ' + \
-                                    ' exc_file: '+ str(exc_file_name) + ' | ' + \
-                                    ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
-                                    ' locatie: ' + str (locatie_value_list)  + ' | '\
-                                    ' result: '+ str(result) + \
-                                    '\n'
-                        logging.info(log_string)
+                        result = 'SUCCES'
+                        result_remark = 'Updaten niet nodig deze locatie en deelproces waarde zijn al ingevuld '
+                        log_string = str(index) + ' | '+str(excel_row_log_values) + ' | '+str(doctype_id) + ' | '+str(deelproces_id) + ' | '+str (exc_locatie_value)  + ' | '+ str(exc_fabrikant_value) + ' | '+str(file_onDisk) + ' | '+ str(result)   + ' | '+result_remark +' | ' result_param'\n'logging.info(log_string)
                         result_file.write(log_string)
                         print (log_string)   
                 else:
                     # print/log de fout >> dat er geen match is 
-                    log_string = 'index: ' + str(index) + ' | ' + \
-                                ' doctype_id: '+ str(doctype_id) + ' | ' + \
-                                ' DeelProces_type_id: '+ str(deel_proces_value_list) + ' | ' + \
-                                ' exc_file: '+ str(exc_file_name) + ' | ' + \
-                                ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
-                                ' locatie: ' + str (locatie_value_list)  + ' | '\
-                                ' result: '+ str(result) + \
-                                '\n'
-                    logging.info(log_string)
+                    result = 'ERROR'
+                    #
+                    # remark and param are set in the code above
+                    log_string = str(index) + ' | '+str(excel_row_log_values) + ' | '+str(doctype_id) + ' | '+str(deelproces_id) + ' | '+str (exc_locatie_value)  + ' | '+ str(exc_fabrikant_value) + ' | '+str(file_onDisk) + ' | '+ str(result)   + ' | '+result_remark +' | ' result_param'\n'logging.info(log_string)
                     result_file.write(log_string)
                     print (log_string)  
+                
 
-
-    except Exception as e:
-        result = 'Error: ' + repr(e)
-        log_string = 'index: ' + str(index) + ' | ' + \
-                    ' doctype_id: '+ str(doctype_id) + ' | ' + \
-                    ' DeelProces_type_id: '+ str(deel_proces_value_list) + ' | ' + \
-                    ' exc_file: '+ str(exc_file_name) + ' | ' + \
-                    ' fabrikant: ' + str(exc_fabrikant_value) + ' | '\
-                    ' locatie: ' + str (locatie_value_list)  + ' | '\
-                    ' result: '+ str(result) + \
-                    '\n'
+    except e_doc_type_doesnot_exist:
+        result = 'ERROR'
+        result_remark = 'DOC type bestaat niet op SP'
+        log_string = str(index) + ' | '+str(excel_row_log_values) + ' | '+str(doctype_id) + ' | '+str(deelproces_id) + ' | '+str (exc_locatie_value)  + ' | '+ str(exc_fabrikant_value) + ' | '+str(file_onDisk) + ' | '+ str(result)   + ' | '+result_remark +' | ' result_param'\n'logging.info(log_string)
+        logging.info ('TRACE:  '+traceback.format_exc())
+        result_file.write(log_string)
+        print (log_string)        
+    except e_deel_proces_doesnot_exist:
+        result = 'ERROR'
+        result_remark = 'Deelproces bestaat niet op SP '
+        log_string = str(index) + ' | '+str(excel_row_log_values) + ' | '+str(doctype_id) + ' | '+str(deelproces_id) + ' | '+str (exc_locatie_value)  + ' | '+ str(exc_fabrikant_value) + ' | '+str(file_onDisk) + ' | '+ str(result)   + ' | '+result_remark +' | ' result_param'\n'logging.info(log_string)
+        logging.info ('TRACE:  '+traceback.format_exc())
+        result_file.write(log_string)
+        print (log_string)        
+    except e_locatie_doesnot_exist:
+        result = 'ERROR'
+        result_remark = 'LOCATIE bestaat niet op SP'
+        log_string = str(index) + ' | '+str(excel_row_log_values) + ' | '+str(doctype_id) + ' | '+str(deelproces_id) + ' | '+str (exc_locatie_value)  + ' | '+ str(exc_fabrikant_value) + ' | '+str(file_onDisk) + ' | '+ str(result)   + ' | '+result_remark +' | ' result_param'\n'
+        logging.info(log_string)
+        logging.info ('TRACE:  '+traceback.format_exc())
+        result_file.write(log_string)
+        print (log_string)        
+    except e_bestand_doesnot_exist:
+        result = 'ERROR'
+        result_remark = 'Bestand staat niet in brondirectory'
+        log_string = str(index) + ' | '+str(excel_row_log_values) + ' | '+str(doctype_id) + ' | '+str(deelproces_id) + ' | '+str (exc_locatie_value)  + ' | '+ str(exc_fabrikant_value) + ' | '+str(file_onDisk) + ' | '+ str(result)   + ' | '+result_remark +' | ' result_param'\n'
         logging.info(log_string)
         logging.info ('TRACE:  '+traceback.format_exc())
         result_file.write(log_string)
         print (log_string)
-    
+    except Exception as e:
+        result = 'ERROR'
+        result_remark = repr(e)
+        log_string = str(index) + ' | '+str(excel_row_log_values) + ' | '+str(doctype_id) + ' | '+str(deelproces_id) + ' | '+str (exc_locatie_value)  + ' | '+ str(exc_fabrikant_value) + ' | '+str(file_onDisk) + ' | '+ str(result)   + ' | '+result_remark +' | ' result_param'\n'
+        logging.info(log_string)
+        logging.info ('TRACE:  '+traceback.format_exc())
+        result_file.write(log_string)
+        print (log_string)
+
 # close log file
 result_file.close()
 

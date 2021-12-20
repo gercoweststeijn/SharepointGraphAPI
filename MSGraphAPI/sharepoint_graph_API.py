@@ -263,6 +263,7 @@ class SP_site:
                 nextpage = 0
             nextdoc_list = nextdoc_list['value']
             doc_list = doc_list + nextdoc_list        
+
         return doc_list            
 
     def get_doc_item_with_all_fields (self, doc_id):     
@@ -290,6 +291,7 @@ class SP_site:
             doc_name = document['fields']['LinkFilename']
             if doc_name == filename:
                 found_doc_id = document['id']
+                return found_doc_id
         return found_doc_id
             
 
@@ -301,9 +303,6 @@ class SP_site:
         driveitem = result.json()
         drive_itemId = driveitem['id']
         return drive_itemId
-
-    
-
 
     #
     # Upload a file to sharepoint
@@ -380,25 +379,19 @@ class SP_site:
         update_instructions = { "td_fabrikant" : fabrikant_value,
                                 "td_deelproces_x002d_colLookupId@odata.type": 'Collection(Edm.Int32)',
                                 "td_deelproces_x002d_colLookupId": deel_proces_value_list,  
-                                "td_documentsoortLookupId": doctype_id
-                                 
+                                "td_documentsoortLookupId": doctype_id                                 
                                 } 
         if locatie_value_list != ['']:            
             update_instructions["td_locatie_x002d_colLookupId@odata.type"] =  'Collection(Edm.Int32)'
             update_instructions["td_locatie_x002d_colLookupId"]= locatie_value_list
 
-        result =  requests.patch(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{self.doc_lib_list_id}/items/{doc_id}/fields'
-        
+        result =  requests.patch(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{self.doc_lib_list_id}/items/{doc_id}/fields'        
                         , headers=self.HEADERS
                         , json = update_instructions)
 
         result.raise_for_status()
         response = result.json()
         return 'Succes'
-
-    # 
-    # It seems to be possible to do this based on the graph functionality of filter 
-    
 
     def del_list_item_on_DocID (self, doc_id):
         result = requests.delete(f'{self.ENDPOINT}/sites/{self.site_id}/lists/{self.doc_list_title}/items/{doc_id}', headers=self.HEADERS)

@@ -16,10 +16,10 @@ if check == 'ja':
     ts  = now.strftime('%Y-%m-%d-%H_%M_%S')
     #logfile
     #log_file_name= Exc_CNF.LOG_DIRECTORY+'\log_del_all_docs'+ts+'.txt'
-    log_file_name= f'c:\TEMP\LOG\log_del_all_docs'+ts+'.txt'
-    logging.basicConfig(  filename= log_file_name
-                        #, encoding='utf-8'
-                        , level=logging.DEBUG)
+    #log_file_name= f'log_del_all_docs________'+ts+'.txt'
+    #logging.basicConfig(  filename= log_file_name
+    #                    #, encoding='utf-8'
+    #                    , level=logging.DEBUG)
 
 
     #create SP object > based on config in SharepointConfig.py
@@ -29,6 +29,5 @@ if check == 'ja':
     for doc in doc_list:
         print('del docid: ' + str(doc['id']))
         sp2.del_list_item_on_DocID(doc['id'])
-else:
-     
+else:     
     print('dan doen we niks')

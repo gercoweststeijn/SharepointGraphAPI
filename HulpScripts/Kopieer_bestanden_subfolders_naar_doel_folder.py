@@ -8,14 +8,14 @@
 import os, shutil, datetime, sys
 
 
-#bron_map = 'C:/Temp/knipbestanden/'
-bron_map = 'C:/Temp/_Te splitsen documentatie'
-doel_map ='C:/Temp/rwzibron2/'
 
-now = datetime.datetime.now()
-ts  = now.strftime('%Y-%m-%d-%H_%M_%S')
-result_file_name = 'c:/Temp/ResultFile_copy_'+ts+'.csv'
-result_file = open(result_file_name, "a", encoding='utf-8')
+bron_map = r'd:\box'
+doel_map =r'd:\box_met_zips'
+
+#now = datetime.datetime.now()
+#ts  = now.strftime('%Y-%m-%d-%H_%M_%S')
+#result_file_name = 'C:/temp/_ff_'+ts+'.csv'
+#result_file = open(result_file_name, "a", encoding='utf-8')
 
 counter_all = 0
 counter_cp = 0
@@ -30,10 +30,10 @@ for root, dirs, files in os.walk(bron_map):
          counter_cp = counter_cp +1
          
          shutil.copy2(path_file,doel_map) 
-         result_file.write('GELUKT , ,' + file + ','+path_file+'\n') 
+         print('GELUKT , ,' + file + ','+path_file+'\n') 
       else:
-         result_file.write('FOUT , kunnen we niet schrijven want deze bestaat al ,'+file + ' , ' +path_file+'\n' )
+         print('FOUT , kunnen we niet schrijven want deze bestaat al ,'+file + ' , ' +path_file+'\n' )
 
-result_file.close()
+#result_file.close()
 print (str(counter_all) + ' bestanden tegen gekomen.')
 print (str(counter_cp) + ' bestanden gekopieerd controleer dat dit klopt met aantal in de doelmap')
